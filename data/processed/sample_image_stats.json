@@ -3,12 +3,12 @@
     "cells_with_inclusions": 43,
     "cells_without_inclusions": 0,
     "percent_cells_with_inclusions": 100.0,
-    "total_inclusions": 99,
-    "avg_inclusions_per_cell": 2.302325581395349,
-    "std_inclusions_per_cell": 0.7324658487452848,
-    "avg_inclusion_area": 60.505050505050505,
-    "std_inclusion_area": 29.388162853545985,
+    "total_inclusions": 98,
+    "avg_inclusions_per_cell": 2.2790697674418605,
+    "std_inclusions_per_cell": 0.7257900713640574,
+    "avg_inclusion_area": 61.04081632653061,
+    "std_inclusion_area": 29.052703118940318,
     "avg_cell_area": 738.0,
-    "avg_inclusion_ratio": 0.18756682617585985,
-    "std_inclusion_ratio": 0.0204038520998537
+    "avg_inclusion_ratio": 0.18732614504826878,
+    "std_inclusion_ratio": 0.020840138418333275
 }
