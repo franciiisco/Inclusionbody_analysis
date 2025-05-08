@@ -34,6 +34,7 @@ def process_image(
         output_dir: Directorio para guardar resultados
         show_visualizations: Si es True, muestra las visualizaciones durante el proceso
     """
+    
     # Valores predeterminados
     if preprocess_config is None:
         preprocess_config = {
