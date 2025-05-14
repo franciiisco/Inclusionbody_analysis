@@ -42,7 +42,10 @@ def detect_inclusions_in_cell(
     cell_mask: np.ndarray,
     min_size: int = 3,
     max_size: int = 30,
-    threshold_offset: float = -0.2
+    threshold_offset: float = -0.2,
+    min_contrast: float = 0.05,
+    contrast_window: int = 3,
+    remove_border: bool = True
 ) -> List[Dict[str, Any]]:
     """
     Detecta inclusiones de polifosfatos dentro de una célula específica.
@@ -54,6 +57,9 @@ def detect_inclusions_in_cell(
         max_size: Tamaño máximo de inclusión en píxeles
         threshold_offset: Ajuste para el umbral de detección (negativo para detectar
                          áreas más oscuras que la célula)
+        min_contrast: Contraste mínimo entre inclusión y su entorno
+        contrast_window: Tamaño de ventana para evaluación de contraste
+        remove_border: Si es True, elimina detecciones en el borde de la célula
     
     Returns:
         Lista de diccionarios con propiedades de cada inclusión detectada
@@ -69,17 +75,55 @@ def detect_inclusions_in_cell(
     mean_intensity = np.mean(cell_pixels)
     std_intensity = np.std(cell_pixels)
     
-    # Calcular umbral para detectar inclusiones (más oscuras que la célula)
-    # Un valor negativo de threshold_offset significa que buscamos áreas más oscuras
-    threshold = mean_intensity + threshold_offset * std_intensity
+    # Crear una versión dilatada de la célula para detectar bordes
+    if remove_border:
+        kernel_border = np.ones((3, 3), np.uint8)
+        inner_mask = cv2.erode(cell_mask, kernel_border, iterations=1)
+        border_mask = cell_mask - inner_mask
+    else:
+        border_mask = np.zeros_like(cell_mask)
     
-    # Umbralizar para detectar inclusiones
-    inclusion_mask = np.zeros_like(cell_mask)
-    inclusion_mask[(masked_cell < threshold) & (cell_mask > 0)] = 255
+    # Usar umbral adaptativo dentro de la célula para mejor detección
+    # Primero un umbral global basado en la media
+    threshold_global = mean_intensity + threshold_offset * std_intensity
+    
+    # Crear una máscara inicial de candidatos a inclusiones
+    candidate_mask = np.zeros_like(cell_mask)
+    candidate_mask[(masked_cell < threshold_global) & (cell_mask > 0)] = 255
+    
+    # Aplicar umbral adaptativo para refinar la detección
+    # Solo donde la máscara de célula es positiva
+    cell_region = original_image.copy()
+    cell_region[cell_mask == 0] = 0
+    
+    # Si hay suficientes píxeles, aplicar umbral adaptativo
+    if np.sum(cell_mask > 0) > 100:  # Verificar que la célula tenga tamaño suficiente
+        try:
+            # Usar umbral adaptativo con un tamaño de bloque proporcional al tamaño celular
+            cell_size = np.sqrt(np.sum(cell_mask > 0))
+            block_size = max(int(cell_size / 4) * 2 + 1, 11)  # Asegurar que sea impar
+            block_size = min(block_size, 51)  # Limitar el tamaño máximo
+            
+            adaptive_thresh = cv2.adaptiveThreshold(
+                cell_region, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                cv2.THRESH_BINARY_INV, block_size, 2
+            )
+            
+            # Combinar umbral global y adaptativo
+            inclusion_mask = cv2.bitwise_and(candidate_mask, adaptive_thresh)
+        except Exception:
+            # Si falla el adaptivo, usar solo el umbral global
+            inclusion_mask = candidate_mask
+    else:
+        inclusion_mask = candidate_mask
     
     # Eliminar ruido pequeño mediante apertura morfológica
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
     inclusion_mask = cv2.morphologyEx(inclusion_mask, cv2.MORPH_OPEN, kernel)
+    
+    # Remover detecciones en el borde de la célula si está habilitado
+    if remove_border:
+        inclusion_mask[border_mask > 0] = 0
     
     # Etiquetar componentes conectados en la máscara de inclusiones
     labeled_inclusions = measure.label(inclusion_mask)
@@ -91,21 +135,48 @@ def detect_inclusions_in_cell(
     for prop in inclusion_props:
         # Filtrar por tamaño
         if min_size <= prop.area <= max_size:
-            # Calcular centroide y ajustarlo a coordenadas de imagen completa
+            # Calcular centroide
             y, x = prop.centroid
             
-            # Extraer propiedades relevantes
-            inclusion = {
-                'centroid': (x, y),
-                'area': prop.area,
-                'perimeter': prop.perimeter,
-                'mean_intensity': prop.mean_intensity,
-                'min_intensity': prop.min_intensity,
-                'circularity': 4 * np.pi * prop.area / (prop.perimeter * prop.perimeter) if prop.perimeter > 0 else 0,
-                'bbox': prop.bbox  # (min_row, min_col, max_row, max_col)
-            }
+            # Crear una máscara para esta inclusión específica
+            inclusion_specific_mask = (labeled_inclusions == prop.label).astype(np.uint8)
             
-            inclusions.append(inclusion)
+            # Calcular contraste local: diferencia entre la inclusión y su entorno inmediato
+            # Dilatar la máscara de inclusión para obtener el entorno
+            kernel_env = np.ones((contrast_window, contrast_window), np.uint8)
+            environment_mask = cv2.dilate(inclusion_specific_mask, kernel_env, iterations=1)
+            # Restar la inclusión para tener solo el entorno
+            environment_mask = environment_mask - inclusion_specific_mask
+            # Aplicar la máscara a la imagen original
+            environment_mask = environment_mask & cell_mask
+            
+            # Calcular intensidades
+            inclusion_intensity = prop.mean_intensity
+            
+            # Verificar que hay píxeles de entorno
+            if np.sum(environment_mask) > 0:
+                environment_intensity = np.mean(original_image[environment_mask > 0])
+                local_contrast = abs(environment_intensity - inclusion_intensity) / 255.0
+            else:
+                local_contrast = 0
+                environment_intensity = None
+            
+            # Filtrar por contraste mínimo
+            if local_contrast >= min_contrast:
+                # Extraer propiedades relevantes
+                inclusion = {
+                    'centroid': (x, y),
+                    'area': prop.area,
+                    'perimeter': prop.perimeter,
+                    'mean_intensity': prop.mean_intensity,
+                    'min_intensity': prop.min_intensity,
+                    'contrast': local_contrast,
+                    'environment_intensity': environment_intensity,
+                    'circularity': 4 * np.pi * prop.area / (prop.perimeter * prop.perimeter) if prop.perimeter > 0 else 0,
+                    'bbox': prop.bbox  # (min_row, min_col, max_row, max_col)
+                }
+                
+                inclusions.append(inclusion)
     
     return inclusions
 
@@ -130,7 +201,10 @@ def detect_all_inclusions(
         detection_params = {
             'min_size': 3,
             'max_size': 30,
-            'threshold_offset': -0.2  # Negativo para detectar áreas más oscuras
+            'threshold_offset': -0.2,  # Negativo para detectar áreas más oscuras
+            'min_contrast': 0.05,
+            'contrast_window': 3,
+            'remove_border': True
         }
     
     # Crear máscaras individuales para cada célula
@@ -145,7 +219,10 @@ def detect_all_inclusions(
             mask,
             min_size=detection_params.get('min_size', 3),
             max_size=detection_params.get('max_size', 30),
-            threshold_offset=detection_params.get('threshold_offset', -0.2)
+            threshold_offset=detection_params.get('threshold_offset', -0.2),
+            min_contrast=detection_params.get('min_contrast', 0.05),
+            contrast_window=detection_params.get('contrast_window', 3),
+            remove_border=detection_params.get('remove_border', True)
         )
         
         all_inclusions[cell_id] = inclusions
@@ -452,7 +529,10 @@ if __name__ == "__main__":
         detection_params = {
             'min_size': 3,
             'max_size': 30,
-            'threshold_offset': -0.2  # Negativo para detectar áreas más oscuras
+            'threshold_offset': -0.2,  # Negativo para detectar áreas más oscuras
+            'min_contrast': 0.05,
+            'contrast_window': 3,
+            'remove_border': True
         }
         
         # Detectar inclusiones

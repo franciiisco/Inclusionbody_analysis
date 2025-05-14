@@ -5,9 +5,6 @@ Script principal para el análisis de inclusiones de polifosfatos en células ba
 import os
 import cv2
 import numpy as np
-import tkinter as tk
-import matplotlib
-matplotlib.use('TkAgg')  # or 'Qt5Agg', depending on what's installed
 import matplotlib.pyplot as plt
 import json
 from src.preprocessing import preprocess_pipeline, visualize_preprocessing_steps
@@ -34,8 +31,13 @@ def process_image(
         output_dir: Directorio para guardar resultados
         show_visualizations: Si es True, muestra las visualizaciones durante el proceso
     """
-    
-    # Valores predeterminados
+    ''' 
+    ==========================================
+    Configuración de preprocesamiento
+    =========================================
+    En esta sección se definen los parámetros para el preprocesamiento de la imagen.
+    Se pueden ajustar según las características de las imágenes y los requisitos del análisis.
+    '''
     if preprocess_config is None:
         preprocess_config = {
             'normalize': {'method': 'clahe', 'clip_limit': 2.0, 'tile_grid_size': (8, 8)},
@@ -43,6 +45,14 @@ def process_image(
             'correct_illumination': {'method': 'morphological', 'params': {'kernel_size': 51}},
             'invert': True
         }
+    
+    ''' 
+    ==========================================
+    Configuración de segmentación de células
+    ==========================================
+    En esta sección se definen los parámetros para la segmentación de células.
+    Se pueden ajustar según las características de las imágenes y los requisitos del análisis.
+    '''
     
     if segment_config is None:
         segment_config = {
@@ -67,11 +77,25 @@ def process_image(
             }
         }
     
+    ''' 
+    ==========================================
+    Configuración de detección de inclusiones
+    ==========================================
+
+    En esta sección se definen los parámetros para la detección de inclusiones de polifosfatos.
+    Se pueden ajustar según las características de las imágenes y los requisitos del análisis.
+    '''
+
     if detection_config is None:
         detection_config = {
-            'min_size': 10,
-            'max_size': 200,
-            'threshold_offset': -1.0  # Negativo para detectar áreas más oscuras
+            'min_size': 4,  
+            'max_size': 350,
+            'threshold_offset': -0.5,  # Menos extremo que -0.7
+            'min_contrast': 0.08,      # Más exigente que 0.05
+            'contrast_window': 3,      # Más local para bordes
+            'remove_border': False,    # Permitir detecciones en bordes
+            # 'min_separation': 4,       # Evitar detecciones muy cercanas (desactivado por ahora)
+            'min_circularity': 0.8     # Filtrar por forma
         }
     
     if output_dir is None:
