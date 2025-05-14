@@ -1,0 +1,14 @@
+{
+    "total_cells": 43,
+    "cells_with_inclusions": 34,
+    "cells_without_inclusions": 9,
+    "percent_cells_with_inclusions": 79.06976744186046,
+    "total_inclusions": 51,
+    "avg_inclusions_per_cell": 1.186046511627907,
+    "std_inclusions_per_cell": 0.7852066519132155,
+    "avg_inclusion_area": 106.09803921568627,
+    "std_inclusion_area": 47.93306399142773,
+    "avg_cell_area": 738.0,
+    "avg_inclusion_ratio": 0.22298847909893807,
+    "std_inclusion_ratio": 0.08912696593204483
+}
