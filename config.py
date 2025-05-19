@@ -59,3 +59,37 @@ DETECTION_CONFIG = {
     'remove_border': False,
     'min_circularity': 0.7      # Reducido de 0.7 para permitir objetos menos circulares (posiblemente fusionados)
 }
+
+# --- Configuración de la nueva detección de inclusiones v2.0 ---
+DETECTION_V2_CONFIG = {
+    'preprocessing': {
+        'cell_normalization': True,
+        'contrast_enhancement': 'clahe',  # 'clahe', 'histogram_equalization', None
+        'edge_enhancement': True
+    },
+    
+    'thresholding': {
+        'method': 'multi_level',  # 'multi_level', 'adaptive', 'otsu'
+        'sensitivity': 0.8,       # Factor de ajuste (0.5-1.5)
+        'adaptive_block_size': 15  # Para umbralización adaptativa
+    },
+    
+    'separation': {
+        'method': 'watershed',    # 'watershed', 'distance', 'contour_analysis'
+        'min_distance': 5,        # Distancia mínima entre inclusiones
+        'intensity_weight': 0.7   # Peso de la intensidad vs. distancia (0-1)
+    },
+    
+    'filtering': {
+        'min_size': 5,           # Tamaño mínimo en píxeles
+        'max_size': 1500,        # Tamaño máximo en píxeles
+        'min_circularity': 0.4,  # Circularidad mínima (0-1)
+        'min_contrast': 0.08,    # Contraste mínimo con el entorno
+        'texture_analysis': True  # Análisis de textura para validación
+    },
+    
+    'debug': {
+        'save_intermediate_steps': False,
+        'specific_cell_ids': []  # Para depuración de células específicas
+    }
+}
