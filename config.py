@@ -68,7 +68,7 @@ DETECTION_V2_CONFIG = {
     },
     
     'thresholding': {
-        'method': 'multi_level',  # 'multi_level', 'adaptive', 'otsu'
+        'method': 'adaptive',  # 'multi_level', 'adaptive', 'otsu'
         'sensitivity': 0.45,       # Factor de ajuste (0.5-1.5)
         'adaptive_block_size': 5  # Para umbralización adaptativa
     },
@@ -76,7 +76,7 @@ DETECTION_V2_CONFIG = {
     'separation': {
         'method': 'watershed',    # 'watershed', 'distance', 'contour_analysis'
         'min_distance': 1,        # Distancia mínima entre inclusiones
-        'intensity_weight': 0.1   # Peso de la intensidad vs. distancia (0-1)
+        'intensity_weight': 0.05   # Peso de la intensidad vs. distancia (0-1)
     },
     
     'filtering': {
