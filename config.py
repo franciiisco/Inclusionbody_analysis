@@ -70,26 +70,26 @@ DETECTION_V2_CONFIG = {
     
     'thresholding': {
         'method': 'multi_level',  # 'multi_level', 'adaptive', 'otsu'
-        'sensitivity': 0.8,       # Factor de ajuste (0.5-1.5)
+        'sensitivity': 0.6,       # Factor de ajuste (0.5-1.5)
         'adaptive_block_size': 15  # Para umbralización adaptativa
     },
     
     'separation': {
         'method': 'watershed',    # 'watershed', 'distance', 'contour_analysis'
         'min_distance': 5,        # Distancia mínima entre inclusiones
-        'intensity_weight': 0.7   # Peso de la intensidad vs. distancia (0-1)
+        'intensity_weight': 0.8   # Peso de la intensidad vs. distancia (0-1)
     },
     
     'filtering': {
-        'min_size': 5,           # Tamaño mínimo en píxeles
+        'min_size': 3,           # Tamaño mínimo en píxeles
         'max_size': 1500,        # Tamaño máximo en píxeles
-        'min_circularity': 0.4,  # Circularidad mínima (0-1)
-        'min_contrast': 0.08,    # Contraste mínimo con el entorno
+        'min_circularity': 0.3,  # Circularidad mínima (0-1)
+        'min_contrast': 0.05,    # Contraste mínimo con el entorno
         'texture_analysis': True  # Análisis de textura para validación
     },
     
     'debug': {
-        'save_intermediate_steps': False,
+        'save_intermediate_steps': False,  # Guardar pasos intermedios para depuración
         'specific_cell_ids': []  # Para depuración de células específicas
     }
 }
