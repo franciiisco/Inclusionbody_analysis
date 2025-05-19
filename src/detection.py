@@ -38,41 +38,43 @@ def create_cell_masks(
 
 
 def detect_inclusions_in_cell(
-    original_image: np.ndarray, 
+    original_image_inclusions_bright: np.ndarray, # Renombrado para claridad
     cell_mask: np.ndarray,
     min_size: int = 3,
     max_size: int = 30,
-    threshold_offset: float = -0.2,
-    min_contrast: float = 0.05,
+    threshold_offset: float = 0.2,  # Ahora positivo: inclusiones más brillantes que la media
+    min_contrast: float = 0.1, 
     contrast_window: int = 3,
-    remove_border: bool = True
+    remove_border: bool = True,
+    min_circularity: float = 0.6  # Nuevo parámetro para filtrar por forma
 ) -> List[Dict[str, Any]]:
     """
-    Detecta inclusiones de polifosfatos dentro de una célula específica.
+    Detecta inclusiones (esperadas como brillantes) dentro de una célula específica.
     
     Args:
-        original_image: Imagen original preprocesada (sin inversión)
+        original_image_inclusions_bright: Imagen donde las inclusiones son brillantes y el fondo/citoplasma oscuro.
         cell_mask: Máscara binaria de la célula
         min_size: Tamaño mínimo de inclusión en píxeles
         max_size: Tamaño máximo de inclusión en píxeles
-        threshold_offset: Ajuste para el umbral de detección (negativo para detectar
-                         áreas más oscuras que la célula)
+        threshold_offset: Ajuste para el umbral de detección (positivo para detectar
+                         áreas más brillantes que la célula)
         min_contrast: Contraste mínimo entre inclusión y su entorno
         contrast_window: Tamaño de ventana para evaluación de contraste
         remove_border: Si es True, elimina detecciones en el borde de la célula
+        min_circularity: Circularidad mínima para que una detección sea considerada válida
     
     Returns:
         Lista de diccionarios con propiedades de cada inclusión detectada
     """
-    # Aplicar la máscara a la imagen original
-    masked_cell = cv2.bitwise_and(original_image, original_image, mask=cell_mask.astype(np.uint8))
+    # Aplicar la máscara a la imagen (inclusiones brillantes)
+    masked_cell = cv2.bitwise_and(original_image_inclusions_bright, original_image_inclusions_bright, mask=cell_mask.astype(np.uint8))
     
     # Calcular estadísticas de intensidad dentro de la célula
-    cell_pixels = original_image[cell_mask > 0]
+    cell_pixels = original_image_inclusions_bright[cell_mask > 0]
     if len(cell_pixels) == 0:
         return []
     
-    mean_intensity = np.mean(cell_pixels)
+    mean_intensity = np.mean(cell_pixels) # Media del citoplasma (ahora más oscuro)
     std_intensity = np.std(cell_pixels)
     
     # Crear una versión dilatada de la célula para detectar bordes
@@ -83,18 +85,18 @@ def detect_inclusions_in_cell(
     else:
         border_mask = np.zeros_like(cell_mask)
     
-    # Usar umbral adaptativo dentro de la célula para mejor detección
-    # Primero un umbral global basado en la media
-    threshold_global = mean_intensity + threshold_offset * std_intensity
+    # Umbral global: inclusiones son más brillantes que la media + offset
+    threshold_global = mean_intensity + threshold_offset * std_intensity 
     
-    # Crear una máscara inicial de candidatos a inclusiones
+    # Crear una máscara inicial de candidatos a inclusiones (brillantes)
     candidate_mask = np.zeros_like(cell_mask)
-    candidate_mask[(masked_cell < threshold_global) & (cell_mask > 0)] = 255
+    # CAMBIO: Condición para píxeles más brillantes
+    candidate_mask[(masked_cell > threshold_global) & (cell_mask > 0)] = 255 
     
     # Aplicar umbral adaptativo para refinar la detección
     # Solo donde la máscara de célula es positiva
-    cell_region = original_image.copy()
-    cell_region[cell_mask == 0] = 0
+    cell_region = original_image_inclusions_bright.copy()
+    cell_region[cell_mask == 0] = 0 # Fondo de la región celular es negro
     
     # Si hay suficientes píxeles, aplicar umbral adaptativo
     if np.sum(cell_mask > 0) > 100:  # Verificar que la célula tenga tamaño suficiente
@@ -106,7 +108,7 @@ def detect_inclusions_in_cell(
             
             adaptive_thresh = cv2.adaptiveThreshold(
                 cell_region, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                cv2.THRESH_BINARY_INV, block_size, 2
+                cv2.THRESH_BINARY, block_size, 2 # CAMBIO: THRESH_BINARY para objetos brillantes
             )
             
             # Combinar umbral global y adaptativo
@@ -118,7 +120,7 @@ def detect_inclusions_in_cell(
         inclusion_mask = candidate_mask
     
     # Eliminar ruido pequeño mediante apertura morfológica
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2)) 
     inclusion_mask = cv2.morphologyEx(inclusion_mask, cv2.MORPH_OPEN, kernel)
     
     # Remover detecciones en el borde de la célula si está habilitado
@@ -126,71 +128,88 @@ def detect_inclusions_in_cell(
         inclusion_mask[border_mask > 0] = 0
     
     # Etiquetar componentes conectados en la máscara de inclusiones
+    # Usar original_image_inclusions_bright para regionprops
     labeled_inclusions = measure.label(inclusion_mask)
-    inclusion_props = measure.regionprops(labeled_inclusions, intensity_image=original_image)
+    inclusion_props = measure.regionprops(labeled_inclusions, intensity_image=original_image_inclusions_bright)
     
     inclusions = []
     
     # Filtrar y caracterizar inclusiones
     for prop in inclusion_props:
         # Filtrar por tamaño
-        if min_size <= prop.area <= max_size:
-            # Calcular centroide
-            y, x = prop.centroid
+        if not (min_size <= prop.area <= max_size):
+            continue
+
+        # Calcular y filtrar por circularidad
+        perimeter = prop.perimeter
+        if perimeter == 0: # Evitar división por cero
+            circularity = 0
+        else:
+            circularity = 4 * np.pi * prop.area / (perimeter * perimeter)
+        
+        if circularity < min_circularity:
+            continue
             
-            # Crear una máscara para esta inclusión específica
-            inclusion_specific_mask = (labeled_inclusions == prop.label).astype(np.uint8)
+        # Calcular centroide
+        y, x = prop.centroid
+        
+        # Crear una máscara para esta inclusión específica
+        inclusion_specific_mask = (labeled_inclusions == prop.label).astype(np.uint8)
+        
+        # Calcular contraste local: diferencia entre la inclusión y su entorno inmediato
+        kernel_env = np.ones((contrast_window, contrast_window), np.uint8)
+        environment_mask = cv2.dilate(inclusion_specific_mask, kernel_env, iterations=1)
+        environment_mask = environment_mask - inclusion_specific_mask
+        environment_mask = environment_mask & cell_mask # Asegurar que el entorno esté dentro de la célula
+        
+        inclusion_intensity = prop.mean_intensity # Intensidad de la inclusión (brillante)
+        
+        if np.sum(environment_mask) > 0:
+            # Intensidad del entorno (citoplasma, ahora más oscuro)
+            environment_intensity = np.mean(original_image_inclusions_bright[environment_mask > 0])
+            # Contraste: inclusión brillante vs entorno oscuro
+            if inclusion_intensity > environment_intensity and inclusion_intensity > 0:
+                 local_contrast = (inclusion_intensity - environment_intensity) / inclusion_intensity
+            elif environment_intensity > 0: # Fallback si la inclusión no es más brillante o entorno es 0
+                 local_contrast = abs(inclusion_intensity - environment_intensity) / environment_intensity
+            else: # Fallback si ambas intensidades son muy bajas o cero
+                 local_contrast = abs(inclusion_intensity - environment_intensity) / 255.0 if 255.0 > 0 else 0
+
+        else:
+            local_contrast = 0 # No hay entorno para comparar
+            environment_intensity = None
+        
+        # Filtrar por contraste mínimo
+        if local_contrast >= min_contrast:
+            # Extraer propiedades relevantes
+            inclusion_details = { # Renombrado para evitar conflicto con la lista 'inclusions'
+                'centroid': (x, y),
+                'area': prop.area,
+                'perimeter': perimeter, # Usar la variable perimeter calculada
+                'mean_intensity': prop.mean_intensity, # Esta es la intensidad en la imagen invertida
+                'min_intensity': prop.min_intensity,   # Esta es la intensidad en la imagen invertida
+                'contrast': local_contrast,
+                'environment_intensity': environment_intensity,
+                'circularity': circularity, # Usar la variable circularity calculada
+                'bbox': prop.bbox  # (min_row, min_col, max_row, max_col)
+            }
             
-            # Calcular contraste local: diferencia entre la inclusión y su entorno inmediato
-            # Dilatar la máscara de inclusión para obtener el entorno
-            kernel_env = np.ones((contrast_window, contrast_window), np.uint8)
-            environment_mask = cv2.dilate(inclusion_specific_mask, kernel_env, iterations=1)
-            # Restar la inclusión para tener solo el entorno
-            environment_mask = environment_mask - inclusion_specific_mask
-            # Aplicar la máscara a la imagen original
-            environment_mask = environment_mask & cell_mask
-            
-            # Calcular intensidades
-            inclusion_intensity = prop.mean_intensity
-            
-            # Verificar que hay píxeles de entorno
-            if np.sum(environment_mask) > 0:
-                environment_intensity = np.mean(original_image[environment_mask > 0])
-                local_contrast = abs(environment_intensity - inclusion_intensity) / 255.0
-            else:
-                local_contrast = 0
-                environment_intensity = None
-            
-            # Filtrar por contraste mínimo
-            if local_contrast >= min_contrast:
-                # Extraer propiedades relevantes
-                inclusion = {
-                    'centroid': (x, y),
-                    'area': prop.area,
-                    'perimeter': prop.perimeter,
-                    'mean_intensity': prop.mean_intensity,
-                    'min_intensity': prop.min_intensity,
-                    'contrast': local_contrast,
-                    'environment_intensity': environment_intensity,
-                    'circularity': 4 * np.pi * prop.area / (prop.perimeter * prop.perimeter) if prop.perimeter > 0 else 0,
-                    'bbox': prop.bbox  # (min_row, min_col, max_row, max_col)
-                }
-                
-                inclusions.append(inclusion)
+            inclusions.append(inclusion_details) # Añadir el diccionario a la lista
     
     return inclusions
 
 
 def detect_all_inclusions(
-    original_image: np.ndarray,
+    image_for_inclusion_detection: np.ndarray, # Nombre genérico
     segmented_image: np.ndarray,
     detection_params: Optional[Dict[str, Any]] = None
 ) -> Dict[int, List[Dict[str, Any]]]:
     """
-    Detecta inclusiones de polifosfatos en todas las células segmentadas.
+    Detecta inclusiones en todas las células segmentadas.
     
     Args:
-        original_image: Imagen original preprocesada sin inversión
+        image_for_inclusion_detection: Imagen a usar para la detección.
+                                       Si se esperan inclusiones brillantes, esta imagen debe estar invertida.
         segmented_image: Imagen segmentada donde cada célula tiene una etiqueta única
         detection_params: Parámetros para la detección de inclusiones
     
@@ -198,36 +217,39 @@ def detect_all_inclusions(
         Diccionario que mapea IDs de células a listas de inclusiones detectadas
     """
     if detection_params is None:
+        # Valores por defecto actualizados para inclusiones brillantes y filtro de circularidad
         detection_params = {
             'min_size': 3,
-            'max_size': 30,
-            'threshold_offset': -0.2,  # Negativo para detectar áreas más oscuras
-            'min_contrast': 0.05,
+            'max_size': 50, 
+            'threshold_offset': 0.2,  # Positivo para inclusiones brillantes
+            'min_contrast': 0.1,
             'contrast_window': 3,
-            'remove_border': True
+            'remove_border': True,
+            'min_circularity': 0.6  # Nuevo parámetro por defecto
         }
     
     # Crear máscaras individuales para cada célula
     cell_masks = create_cell_masks(segmented_image)
     
     # Detectar inclusiones en cada célula
-    all_inclusions = {}
+    all_inclusions_map = {} 
     
     for cell_id, mask in cell_masks.items():
-        inclusions = detect_inclusions_in_cell(
-            original_image,
-            mask,
+        inclusions_list = detect_inclusions_in_cell(
+            original_image_inclusions_bright=image_for_inclusion_detection, 
+            cell_mask=mask,
             min_size=detection_params.get('min_size', 3),
-            max_size=detection_params.get('max_size', 30),
-            threshold_offset=detection_params.get('threshold_offset', -0.2),
-            min_contrast=detection_params.get('min_contrast', 0.05),
+            max_size=detection_params.get('max_size', 50),
+            threshold_offset=detection_params.get('threshold_offset', 0.2),
+            min_contrast=detection_params.get('min_contrast', 0.1),
             contrast_window=detection_params.get('contrast_window', 3),
-            remove_border=detection_params.get('remove_border', True)
+            remove_border=detection_params.get('remove_border', True),
+            min_circularity=detection_params.get('min_circularity', 0.6)
         )
         
-        all_inclusions[cell_id] = inclusions
+        all_inclusions_map[cell_id] = inclusions_list
     
-    return all_inclusions
+    return all_inclusions_map
 
 
 def visualize_inclusions(

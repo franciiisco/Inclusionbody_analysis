@@ -7,9 +7,14 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import json
+import glob # Importar glob aquí
 from src.preprocessing import preprocess_pipeline, visualize_preprocessing_steps
 from src.segmentation import segment_cells, visualize_segmentation, threshold_image, apply_morphological_operations
 from src.detection import detect_all_inclusions, visualize_inclusions, summarize_inclusions, plot_inclusion_statistics
+from config import (
+    PREPROCESS_CONFIG, SEGMENT_CONFIG, DETECTION_CONFIG,
+    DEVELOPMENT_MODE, VISUALIZATION_SETTINGS, STANDARD_MODE_CONFIG
+)
 
 
 def process_image(
@@ -17,8 +22,7 @@ def process_image(
     preprocess_config=None,
     segment_config=None,
     detection_config=None,
-    output_dir=None,
-    show_visualizations=True
+    output_dir=None
 ):
     """
     Procesa una imagen para detectar células e inclusiones de polifosfatos.
@@ -29,7 +33,6 @@ def process_image(
         segment_config: Configuración para la segmentación
         detection_config: Configuración para la detección de inclusiones
         output_dir: Directorio para guardar resultados
-        show_visualizations: Si es True, muestra las visualizaciones durante el proceso
     """
     ''' 
     ==========================================
@@ -39,12 +42,7 @@ def process_image(
     Se pueden ajustar según las características de las imágenes y los requisitos del análisis.
     '''
     if preprocess_config is None:
-        preprocess_config = {
-            'normalize': {'method': 'clahe', 'clip_limit': 2.0, 'tile_grid_size': (8, 8)},
-            'denoise': {'method': 'bilateral', 'params': {'d': 3, 'sigma_color': 50, 'sigma_space': 50}},
-            'correct_illumination': {'method': 'morphological', 'params': {'kernel_size': 51}},
-            'invert': True
-        }
+        preprocess_config = PREPROCESS_CONFIG # Usar configuración importada
     
     ''' 
     ==========================================
@@ -55,27 +53,7 @@ def process_image(
     '''
     
     if segment_config is None:
-        segment_config = {
-            'use_enhanced': True,  # Activar el método mejorado
-            'min_cell_size': 200,   # Tamaño mínimo de célula
-            'min_distance': 25,    # Distancia mínima entre máximos locales
-            'gaussian_sigma': 1.5, # Sigma para el suavizado gaussiano
-            'find_markers_method': 'distance',  # Método para encontrar marcadores
-            'threshold': {
-                'method': 'adaptive',
-                'params': {'block_size': 51, 'C': 5}
-            },
-            'morphological': [
-                ('open', {'kernel_size': 3, 'iterations': 2}),
-                ('close', {'kernel_size': 3, 'iterations': 3})
-            ],
-            'filter': {
-                'min_area': 200,
-                'max_area': 2000,
-                'min_circularity': 0.1,
-                'max_aspect_ratio': 10.0
-            }
-        }
+        segment_config = SEGMENT_CONFIG # Usar configuración importada
     
     ''' 
     ==========================================
@@ -87,16 +65,7 @@ def process_image(
     '''
 
     if detection_config is None:
-        detection_config = {
-            'min_size': 4,  
-            'max_size': 350,
-            'threshold_offset': -0.5,  # Menos extremo que -0.7
-            'min_contrast': 0.08,      # Más exigente que 0.05
-            'contrast_window': 3,      # Más local para bordes
-            'remove_border': False,    # Permitir detecciones en bordes
-            # 'min_separation': 4,       # Evitar detecciones muy cercanas (desactivado por ahora)
-            'min_circularity': 0.8     # Filtrar por forma
-        }
+        detection_config = DETECTION_CONFIG # Usar configuración importada
     
     if output_dir is None:
         output_dir = "data/processed"
@@ -119,7 +88,7 @@ def process_image(
     preprocessed = preprocess_pipeline(original_image, preprocess_config)
     
     # Visualizar el preprocesamiento si está habilitado
-    if show_visualizations:
+    if DEVELOPMENT_MODE and VISUALIZATION_SETTINGS.get('show_preprocessing_steps'):
         visualize_preprocessing_steps(original_image, preprocess_config)
     
     # Guardar imagen preprocesada
@@ -142,7 +111,7 @@ def process_image(
     segmented = segment_cells(preprocessed, segment_config)
     
     # Visualizar la segmentación si está habilitado
-    if show_visualizations:
+    if DEVELOPMENT_MODE and VISUALIZATION_SETTINGS.get('show_segmentation_results'):
         visualize_segmentation(original_image, segmented, binary, draw_contours=False)
     
     # Guardar imagen segmentada
@@ -152,19 +121,38 @@ def process_image(
     
     # Paso 3: Detección de inclusiones
     print("Detectando inclusiones de polifosfatos...")
-    # Para la detección usamos la imagen original sin invertir
+    # Invertir la imagen original para la detección de inclusiones (brillantes sobre fondo oscuro)
+    inverted_for_detection = cv2.bitwise_not(original_for_detection)
+
+    # Ajustar los parámetros de detección en la configuración si es necesario
+    # Estos son los valores por defecto que se usarán si no se especifica nada en detection_config
+    # Asegúrate de que detection_config en main.py (o donde se llame) esté ajustado
+    # para inclusiones brillantes si no se pasan explícitamente.
+    # Ejemplo de cómo se vería la configuración actualizada en main.py:
+    # if detection_config is None:
+    #     detection_config = {
+    #         'min_size': 3,  
+    #         'max_size': 50, # Ajusta según tus necesidades
+    #         'threshold_offset': 0.2,  # Positivo para inclusiones brillantes
+    #         'min_contrast': 0.1,      
+    #         'contrast_window': 3,      
+    #         'remove_border': True,    
+    #         'min_circularity': 0.6     # Filtro de forma
+    #     }
+
     all_inclusions = detect_all_inclusions(
-        original_for_detection,  # Original sin inversión
+        inverted_for_detection,  # Usar la imagen invertida
         segmented,
         detection_config
     )
 
     # Visualizar resultados (asegurándonos de mostrar la visualización)
+    # Para la visualización, es mejor usar la imagen original no invertida para que los colores tengan sentido.
     result_image = visualize_inclusions(
-        original_image, 
+        original_for_detection, # Usar la original (no invertida) para visualización
         segmented, 
         all_inclusions, 
-        show_visualization=show_visualizations  # Parámetro que controla todas las visualizaciones
+        show_visualization=(DEVELOPMENT_MODE and VISUALIZATION_SETTINGS.get('show_inclusion_detection'))
     )
     
     # Guardar imagen con inclusiones detectadas
@@ -192,7 +180,7 @@ def process_image(
     print(f"Ratio promedio inclusiones/célula: {summary['avg_inclusion_ratio']*100:.2f}% ± {summary['std_inclusion_ratio']*100:.2f}%")
     
     # Guardar gráficos estadísticos
-    if show_visualizations:
+    if DEVELOPMENT_MODE and VISUALIZATION_SETTINGS.get('show_summary_plots'):
         plt.figure(figsize=(12, 10))
         plot_inclusion_statistics(summary, all_inclusions)
         stats_plot_path = os.path.join(output_dir, f"{base_filename}_stats_plot.png")
@@ -215,7 +203,6 @@ def batch_process(
     input_dir: str,
     output_dir: str = None,
     file_pattern: str = "*.jpg",
-    show_visualizations=False,  # Deshabilitamos visualizaciones para procesamiento por lotes
     **configs
 ):
     """
@@ -225,11 +212,8 @@ def batch_process(
         input_dir: Directorio con imágenes a procesar
         output_dir: Directorio para guardar resultados
         file_pattern: Patrón para seleccionar archivos
-        show_visualizations: Si es True, muestra visualizaciones (no recomendado para lotes grandes)
         **configs: Configuraciones para procesamiento
     """
-    import glob
-    
     # Configurar directorio de salida
     if output_dir is None:
         output_dir = os.path.join(input_dir, "processed")
@@ -253,7 +237,6 @@ def batch_process(
             result = process_image(
                 img_path, 
                 output_dir=output_dir, 
-                show_visualizations=show_visualizations,
                 **configs
             )
             results[os.path.basename(img_path)] = result['summary']
@@ -277,12 +260,54 @@ if __name__ == "__main__":
     # Ejemplo de uso
     image_path = "data/raw/sample_image.png"  # Ajusta la ruta según tu estructura
     
+    # Las configuraciones de preprocesamiento y segmentación se tomarán de config.py por defecto.
+    # Si se necesita una configuración de detección personalizada para una ejecución específica, 
+    # se puede pasar como argumento a process_image o batch_process.
+    # custom_detection_config = {
+    #     'min_size': 4,  
+    #     'max_size': 350, 
+    #     'threshold_offset': 0.2, 
+    #     'min_contrast': 0.12,    
+    #     'contrast_window': 3,      
+    #     'remove_border': False,    
+    #     'min_circularity': 0.7
+    # }
+    
     try:
-        # Procesar una sola imagen con visualizaciones activadas
-        results = process_image(image_path, show_visualizations=True)
-        
-        # O procesar un lote de imágenes (visualizaciones desactivadas por defecto)
-        # batch_process("data/raw", "data/processed", "*.png")
+        if DEVELOPMENT_MODE:
+            print("Modo Desarrollo Activado: Mostrando visualizaciones según VISUALIZATION_SETTINGS.")
+            # En modo desarrollo, procesamos una imagen individual.
+            # Ahora usará DETECTION_CONFIG de config.py por defecto
+            results = process_image(
+                image_path
+                # detection_config=custom_detection_config # Comentado para usar config.py
+            )
+            # Si los gráficos de resumen están habilitados, muéstralos.
+            if VISUALIZATION_SETTINGS.get('show_summary_plots'):
+                plt.show()
+
+        else:
+            print("Modo Estándar Activado: No se mostrarán visualizaciones interactivas.")
+            run_type = STANDARD_MODE_CONFIG.get('run_type', 'single')
+
+            if run_type == 'single':
+                print("Ejecutando análisis para una sola imagen.")
+                # Ahora usará DETECTION_CONFIG de config.py por defecto
+                results = process_image(
+                    image_path
+                    # detection_config=custom_detection_config # Comentado para usar config.py
+                )
+            elif run_type == 'batch':
+                print("Ejecutando análisis por lotes.")
+                # Ahora usará DETECTION_CONFIG de config.py por defecto
+                batch_process(
+                    "data/raw", # Directorio de entrada de ejemplo
+                    "data/processed", # Directorio de salida de ejemplo
+                    "*.png" # Patrón de archivo de ejemplo
+                    # detection_config=custom_detection_config # Comentado para usar config.py
+                )
+            else:
+                print(f"Tipo de ejecución no reconocido en STANDARD_MODE_CONFIG: {run_type}")
         
     except Exception as e:
         print(f"Error durante el procesamiento: {e}")
