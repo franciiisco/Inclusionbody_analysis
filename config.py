@@ -1,7 +1,6 @@
 \
 # filepath: c:\\Users\\fmarquez\\Desktop\\POLIP_Analizer\\config.py
 
-
 # --- Modos de Ejecución y Visualización ---
 DEVELOPMENT_MODE = True  # True para modo desarrollo (con visualizaciones), False para modo estándar
 
@@ -70,22 +69,22 @@ DETECTION_V2_CONFIG = {
     
     'thresholding': {
         'method': 'multi_level',  # 'multi_level', 'adaptive', 'otsu'
-        'sensitivity': 0.6,       # Factor de ajuste (0.5-1.5)
-        'adaptive_block_size': 15  # Para umbralización adaptativa
+        'sensitivity': 0.45,       # Factor de ajuste (0.5-1.5)
+        'adaptive_block_size': 5  # Para umbralización adaptativa
     },
     
     'separation': {
         'method': 'watershed',    # 'watershed', 'distance', 'contour_analysis'
-        'min_distance': 5,        # Distancia mínima entre inclusiones
-        'intensity_weight': 0.8   # Peso de la intensidad vs. distancia (0-1)
+        'min_distance': 1,        # Distancia mínima entre inclusiones
+        'intensity_weight': 0.1   # Peso de la intensidad vs. distancia (0-1)
     },
     
     'filtering': {
-        'min_size': 3,           # Tamaño mínimo en píxeles
+        'min_size': 50,           # Tamaño mínimo en píxeles
         'max_size': 1500,        # Tamaño máximo en píxeles
-        'min_circularity': 0.3,  # Circularidad mínima (0-1)
-        'min_contrast': 0.05,    # Contraste mínimo con el entorno
-        'texture_analysis': True  # Análisis de textura para validación
+        'min_circularity': 0.15,  # Circularidad mínima (0-1)
+        'min_contrast': 0.03,    # Contraste mínimo con el entorno
+        'texture_analysis': False  # DESACTIVADO: para evitar filtrar inclusiones válidas
     },
     
     'debug': {

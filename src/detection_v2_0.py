@@ -218,9 +218,10 @@ def adaptive_local_threshold(image: np.ndarray, cell_mask: np.ndarray,
 
 
 def separate_inclusions_watershed(binary_mask: np.ndarray, original_image: np.ndarray, 
-                                min_distance: int = 5, intensity_weight: float = 0.7) -> np.ndarray:
+                               min_distance: int = 5, intensity_weight: float = 0.7) -> np.ndarray:
     """
-    Separa inclusiones cercanas utilizando el algoritmo watershed.
+    Separa inclusiones cercanas utilizando el algoritmo watershed con mejoras para
+    la detección de inclusiones conectadas por líneas delgadas.
     
     Args:
         binary_mask: Máscara binaria inicial de inclusiones
@@ -235,17 +236,32 @@ def separate_inclusions_watershed(binary_mask: np.ndarray, original_image: np.nd
     if np.sum(binary_mask) == 0:
         return binary_mask
     
+    # MEJORA 1: Aplicar un filtro top-hat para resaltar pequeñas estructuras
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    tophat = cv2.morphologyEx(binary_mask, cv2.MORPH_TOPHAT, kernel)
+    enhanced_mask = cv2.add(binary_mask, tophat)
+    
+    # MEJORA 2: Reducir conexiones delgadas utilizando apertura
+    kernel_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
+    opened_mask = cv2.morphologyEx(enhanced_mask, cv2.MORPH_OPEN, kernel_open)
+    
     # Transformada de distancia
-    dist = cv2.distanceTransform(binary_mask, cv2.DIST_L2, 5)
+    dist = cv2.distanceTransform(opened_mask, cv2.DIST_L2, 5)
+    
+    # MEJORA 3: Aplicar un filtro gaussiano para suavizar la transformada y resaltar máximos
+    dist_smooth = cv2.GaussianBlur(dist, (3, 3), 0)
     
     # Normalizar para visualización
-    dist_normalized = cv2.normalize(dist, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-      # Encontrar máximos locales (obtener coordenadas)
+    dist_normalized = cv2.normalize(dist_smooth, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+
+    # Encontrar máximos locales (obtener coordenadas)
+    # MEJORA 4: Reducir threshold para detectar más picos
     coords = feature.peak_local_max(
-        dist, 
+        dist_smooth, 
         min_distance=min_distance,
         footprint=np.ones((3, 3)),
-        exclude_border=False
+        exclude_border=False,
+        threshold_rel=0.3  # Umbral relativo más bajo para detectar más máximos
     )
     
     # Crear una máscara con los picos
@@ -260,11 +276,41 @@ def separate_inclusions_watershed(binary_mask: np.ndarray, original_image: np.nd
     combined_image = (intensity_weight * original_image + 
                      (1-intensity_weight) * dist_normalized).astype(np.uint8)
     
+    # MEJORA 5: Invertir la imagen combinada para watershed
+    # Esto mejora la detección de fronteras entre regiones conectadas
+    combined_image_inv = 255 - combined_image
+    
     # Aplicar watershed
-    watershed_result = segmentation.watershed(-combined_image, markers, mask=binary_mask)
+    watershed_result = segmentation.watershed(combined_image_inv, markers, mask=binary_mask)
     
     # Convertir resultado a máscara binaria
     result_mask = (watershed_result > 0).astype(np.uint8) * 255
+    
+    # MEJORA 6: Análisis final para separar regiones alargadas
+    # Si hay pocas regiones (menos de lo esperado), intentar dividir las más alargadas
+    labels = measure.label(result_mask)
+    props = measure.regionprops(labels)
+    
+    # Si hay regiones con alta excentricidad (alargadas), podrían ser inclusiones conectadas
+    for prop in props:
+        if prop.eccentricity > 0.8 and prop.area > 20:  # Regiones alargadas y no muy pequeñas
+            # Crear una máscara para esta región
+            region_mask = (labels == prop.label).astype(np.uint8) * 255
+            
+            # Intentar dividir utilizando esqueletización y detección de puntos de unión
+            skeleton = morphology.skeletonize(region_mask > 0)
+            skeleton_labeled = measure.label(skeleton)
+            
+            if np.max(skeleton_labeled) > 1:  # Si hay múltiples partes en el esqueleto
+                # Dividir la región original usando watershed con nuevos marcadores
+                new_markers = measure.label(np.logical_and(skeleton, dist > 0.3 * np.max(dist)))
+                if np.max(new_markers) > 1:
+                    # Aplicar watershed específicamente a esta región
+                    region_watershed = segmentation.watershed(combined_image_inv, new_markers, mask=region_mask)
+                    
+                    # Actualizar la máscara de resultado
+                    result_mask[labels == prop.label] = 0
+                    result_mask[region_watershed > 0] = 255
     
     return result_mask
 
