@@ -1,4 +1,15 @@
-numpy>=1.20.0
-opencv-python>=4.6.0
-matplotlib>=3.5.0
-scikit-image>=0.19.0
+# Requisitos para POLIP_Analizer - Análisis de inclusiones de polifosfatos en células bacterianas
+# ===============================================================================
+
+# Bibliotecas de análisis y procesamiento numérico
+numpy>=1.20.0        # Operaciones numéricas y matrices
+scipy>=1.7.0         # Procesamiento científico y filtrado de imágenes
+
+# Procesamiento de imágenes
+opencv-python>=4.6.0 # Biblioteca principal de visión por computadora
+scikit-image>=0.19.0 # Algoritmos avanzados de procesamiento de imágenes
+
+# Visualización de resultados
+matplotlib>=3.5.0    # Generación de gráficos y visualizaciones
+
+# argparse es parte de la biblioteca estándar de Python, no es necesario instalarlo
