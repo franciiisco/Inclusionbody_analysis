@@ -49,6 +49,20 @@ SEGMENT_CONFIG = {
     }
 }
 
+# ------------------------------------------------------
+# |   Configuración de Detección de Inclusiones (v1)   |
+# ------------------------------------------------------
+
+'''
+Esta configuración es para la versión 1 de detección de inclusiones
+Se recomienda usar la versión 2 (DETECTION_V2_CONFIG) para un mejor rendimiento
+y resultados más precisos.
+
+----------------------------------------------------------
+ESTA CONFIGURACIÓN ESTÁ OBSOLTA Y NO SE RECOMIENDA SU USO
+----------------------------------------------------------
+'''
+
 DETECTION_CONFIG = {
     'min_size': 2,  
     'max_size': 600,
@@ -59,7 +73,15 @@ DETECTION_CONFIG = {
     'min_circularity': 0.7      # Reducido de 0.7 para permitir objetos menos circulares (posiblemente fusionados)
 }
 
-# --- Configuración de la nueva detección de inclusiones v2.0 ---
+# ------------------------------------------------------
+# |   Configuración de Detección de Inclusiones (v2)   |
+# ------------------------------------------------------
+
+'''
+Esta configuración es para la versión 2 de detección de inclusiones
+Se recomienda usar esta versión para un mejor rendimiento y resultados más precisos.
+'''
+
 DETECTION_V2_CONFIG = {
     'preprocessing': {
         'cell_normalization': True,
@@ -68,7 +90,7 @@ DETECTION_V2_CONFIG = {
     },
     
     'thresholding': {
-        'method': 'adaptive',  # 'multi_level', 'adaptive', 'otsu'
+        'method': 'multi_level',  # 'multi_level', 'adaptive', 'otsu'
         'sensitivity': 0.45,       # Factor de ajuste (0.5-1.5)
         'adaptive_block_size': 5  # Para umbralización adaptativa
     },
@@ -76,12 +98,12 @@ DETECTION_V2_CONFIG = {
     'separation': {
         'method': 'watershed',    # 'watershed', 'distance', 'contour_analysis'
         'min_distance': 1,        # Distancia mínima entre inclusiones
-        'intensity_weight': 0.05   # Peso de la intensidad vs. distancia (0-1)
+        'intensity_weight': 0.1   # Peso de la intensidad vs. distancia (0-1)
     },
     
     'filtering': {
         'min_size': 50,           # Tamaño mínimo en píxeles
-        'max_size': 1500,        # Tamaño máximo en píxeles
+        'max_size': 500,        # Tamaño máximo en píxeles
         'min_circularity': 0.15,  # Circularidad mínima (0-1)
         'min_contrast': 0.03,    # Contraste mínimo con el entorno
         'texture_analysis': False  # DESACTIVADO: para evitar filtrar inclusiones válidas

@@ -218,87 +218,99 @@ def adaptive_local_threshold(image: np.ndarray, cell_mask: np.ndarray,
 
 
 def separate_inclusions_watershed(binary_mask: np.ndarray, original_image: np.ndarray, 
-                                min_distance: int = 1, intensity_weight: float = 0.05) -> np.ndarray:
+                               min_distance: int = 5, intensity_weight: float = 0.7) -> np.ndarray:
     """
-    Versión mejorada para separar inclusiones cercanas o conectadas.
+    Separa inclusiones cercanas utilizando el algoritmo watershed con mejoras para
+    la detección de inclusiones conectadas por líneas delgadas.
+    
+    Args:
+        binary_mask: Máscara binaria inicial de inclusiones
+        original_image: Imagen original para usar en la transformada watershed
+        min_distance: Distancia mínima entre marcadores
+        intensity_weight: Peso para la intensidad vs distancia
+    
+    Returns:
+        Máscara binaria mejorada con inclusiones separadas
     """
     # Si no hay objetos en la máscara, devolver la máscara original
     if np.sum(binary_mask) == 0:
         return binary_mask
-        
-    # MEJORA 1: Romper conexiones delgadas con una apertura morfológica agresiva
-    kernel_small = np.ones((2, 2), np.uint8)
-    opened_mask = cv2.morphologyEx(binary_mask, cv2.MORPH_OPEN, kernel_small)
     
-    # MEJORA 2: Aplicar esqueletonización para identificar conexiones
-    skeleton = morphology.skeletonize(binary_mask > 0)
+    # MEJORA 1: Aplicar un filtro top-hat para resaltar pequeñas estructuras
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    tophat = cv2.morphologyEx(binary_mask, cv2.MORPH_TOPHAT, kernel)
+    enhanced_mask = cv2.add(binary_mask, tophat)
     
-    # Calcular la transformada de distancia
+    # MEJORA 2: Reducir conexiones delgadas utilizando apertura
+    kernel_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
+    opened_mask = cv2.morphologyEx(enhanced_mask, cv2.MORPH_OPEN, kernel_open)
+    
+    # Transformada de distancia
     dist = cv2.distanceTransform(opened_mask, cv2.DIST_L2, 5)
     
-    # MEJORA 3: Suavizar la transformada de distancia para mejorar máximos
+    # MEJORA 3: Aplicar un filtro gaussiano para suavizar la transformada y resaltar máximos
     dist_smooth = cv2.GaussianBlur(dist, (3, 3), 0)
     
-    # MEJORA 4: Usar un umbral bajo para encontrar más máximos locales
+    # Normalizar para visualización
+    dist_normalized = cv2.normalize(dist_smooth, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+
+    # Encontrar máximos locales (obtener coordenadas)
+    # MEJORA 4: Reducir threshold para detectar más picos
     coords = feature.peak_local_max(
         dist_smooth, 
         min_distance=min_distance,
         footprint=np.ones((3, 3)),
         exclude_border=False,
-        threshold_rel=0.2  # Umbral bajo para detectar más máximos
+        threshold_rel=0.3  # Umbral relativo más bajo para detectar más máximos
     )
     
-    # MEJORA 5: Si no se encuentran suficientes máximos, forzar la detección de más
-    if len(coords) < 2:  # Si solo hay un máximo o ninguno
-        # Buscar regiones cóncavas que podrían indicar inclusiones conectadas
-        contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-        for contour in contours:
-            # Análisis de convexidad
-            hull = cv2.convexHull(contour, returnPoints=False)
-            if len(hull) > 2:  # Verificar que hay suficientes puntos
-                defects = cv2.convexityDefects(contour, hull)
-                if defects is not None:
-                    for i in range(defects.shape[0]):
-                        _, _, far_idx, distance = defects[i, 0]
-                        if distance/256.0 > 5:  # Puntos significativamente cóncavos
-                            # Agregar este punto como un máximo adicional
-                            far_point = contour[far_idx][0]
-                            new_coord = np.array([[far_point[1], far_point[0]]])
-                            if len(coords) > 0:
-                                coords = np.vstack((coords, new_coord))
-                            else:
-                                coords = new_coord
+    # Crear una máscara con los picos
+    dist_peaks = np.zeros_like(dist, dtype=bool)
+    dist_peaks[tuple(coords.T)] = True
     
-    # MEJORA 6: Forzar al menos dos marcadores para casos de subsegmentación obvia
-    if len(coords) < 2 and np.sum(binary_mask)/255 > 200:  # Área grande
-        # Implementar división basada en forma alargada
-        labeled = measure.label(binary_mask)
-        props = measure.regionprops(labeled)
-        for prop in props:
-            if prop.eccentricity > 0.7:  # Forma alargada que podría ser dos inclusiones
-                y0, x0 = prop.centroid
-                orientation = prop.orientation
-                # Crear dos marcadores a lo largo del eje principal
-                dx = 5 * np.cos(orientation + np.pi/2)
-                dy = 5 * np.sin(orientation + np.pi/2)
-                marker1 = np.array([[int(y0+dy), int(x0+dx)]])
-                marker2 = np.array([[int(y0-dy), int(x0-dx)]])
-                coords = np.vstack((marker1, marker2))
+    # Etiquetar marcadores
+    markers = measure.label(dist_peaks)
     
-    # Crear marcadores a partir de los máximos
-    markers = np.zeros_like(binary_mask)
-    for i, (y, x) in enumerate(coords):
-        markers[y, x] = i + 1
+    # Crear una imagen combinada que considere intensidad y distancia
+    # Las inclusiones son brillantes, por lo que mayor intensidad debe corresponder a mayor probabilidad de ser inclusión
+    combined_image = (intensity_weight * original_image + 
+                     (1-intensity_weight) * dist_normalized).astype(np.uint8)
     
-    # MEJORA 7: Usar un gradiente más agresivo para watershed
-    edges = filters.sobel(original_image)
-    gradient_image = edges + (1-intensity_weight) * (255 - original_image)
+    # MEJORA 5: Invertir la imagen combinada para watershed
+    # Esto mejora la detección de fronteras entre regiones conectadas
+    combined_image_inv = 255 - combined_image
     
-    # Aplicar watershed con los marcadores y gradiente mejorado
-    watershed_result = segmentation.watershed(gradient_image, markers, mask=binary_mask)
+    # Aplicar watershed
+    watershed_result = segmentation.watershed(combined_image_inv, markers, mask=binary_mask)
     
     # Convertir resultado a máscara binaria
     result_mask = (watershed_result > 0).astype(np.uint8) * 255
+    
+    # MEJORA 6: Análisis final para separar regiones alargadas
+    # Si hay pocas regiones (menos de lo esperado), intentar dividir las más alargadas
+    labels = measure.label(result_mask)
+    props = measure.regionprops(labels)
+    
+    # Si hay regiones con alta excentricidad (alargadas), podrían ser inclusiones conectadas
+    for prop in props:
+        if prop.eccentricity > 0.8 and prop.area > 20:  # Regiones alargadas y no muy pequeñas
+            # Crear una máscara para esta región
+            region_mask = (labels == prop.label).astype(np.uint8) * 255
+            
+            # Intentar dividir utilizando esqueletización y detección de puntos de unión
+            skeleton = morphology.skeletonize(region_mask > 0)
+            skeleton_labeled = measure.label(skeleton)
+            
+            if np.max(skeleton_labeled) > 1:  # Si hay múltiples partes en el esqueleto
+                # Dividir la región original usando watershed con nuevos marcadores
+                new_markers = measure.label(np.logical_and(skeleton, dist > 0.3 * np.max(dist)))
+                if np.max(new_markers) > 1:
+                    # Aplicar watershed específicamente a esta región
+                    region_watershed = segmentation.watershed(combined_image_inv, new_markers, mask=region_mask)
+                    
+                    # Actualizar la máscara de resultado
+                    result_mask[labels == prop.label] = 0
+                    result_mask[region_watershed > 0] = 255
     
     return result_mask
 
@@ -387,6 +399,14 @@ def filter_inclusions(labeled_mask: np.ndarray, intensity_image: np.ndarray,
         centroid = prop.centroid
         bbox = prop.bbox
         
+        # Crear una máscara para esta inclusión y obtener su contorno
+        inclusion_mask = np.zeros_like(intensity_image, dtype=np.uint8)
+        inclusion_mask[labeled_mask == prop.label] = 255
+        contours, _ = cv2.findContours(inclusion_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contour_points = []
+        if contours:  # Asegurarse de que se encontraron contornos
+            contour_points = contours[0].reshape(-1, 2).tolist()  # Convertir a lista de puntos
+        
         inclusion_props.append({
             'label': prop.label,
             'area': float(prop.area),
@@ -395,7 +415,8 @@ def filter_inclusions(labeled_mask: np.ndarray, intensity_image: np.ndarray,
             'bbox': [int(x) for x in bbox],
             'circularity': float(circularity),
             'contrast': float(contrast),
-            'mean_intensity': float(prop.mean_intensity)
+            'mean_intensity': float(prop.mean_intensity),
+            'contour': contour_points  # Añadir el contorno
         })
     
     # Crear máscara filtrada
@@ -592,13 +613,9 @@ def visualize_inclusions_v2(original_image: np.ndarray, segmented_image: np.ndar
     # Superponer visualización de segmentación
     result = segmentation_overlay_bgr.copy()
     
-    # Marcar inclusiones con círculos de colores según el tamaño
+    # Marcar inclusiones con sus contornos reales (o con círculos si no hay contorno disponible)
     for cell_id, inclusions in all_inclusions.items():
         for inc in inclusions:
-            # Obtener centro y radio estimado desde área (asumiendo forma circular)
-            cx, cy = int(inc['centroid_x']), int(inc['centroid_y'])
-            radius = int(np.sqrt(inc['area'] / np.pi))
-            
             # Color basado en el tamaño relativo a la célula
             # Verde para inclusiones pequeñas, amarillo para medianas, rojo para grandes
             cell_mask = (segmented_image == cell_id)
@@ -612,8 +629,16 @@ def visualize_inclusions_v2(original_image: np.ndarray, segmented_image: np.ndar
             else:
                 color = (0, 0, 255)  # Rojo: inclusión grande
             
-            # Dibujar círculo
-            cv2.circle(result, (cx, cy), max(1, radius), color, 1)
+            # Dibujar contorno real si está disponible
+            if 'contour' in inc and inc['contour']:
+                # Convertir la lista de puntos a formato numpy para OpenCV
+                contour = np.array(inc['contour']).reshape((-1, 1, 2)).astype(np.int32)
+                cv2.drawContours(result, [contour], 0, color, 1)
+            else:
+                # Caer en método anterior (círculo) si no hay contorno disponible
+                cx, cy = int(inc['centroid_x']), int(inc['centroid_y'])
+                radius = int(np.sqrt(inc['area'] / np.pi))
+                cv2.circle(result, (cx, cy), max(1, radius), color, 1)
     
     # Mostrar la visualización si está habilitado
     if show_visualization:
