@@ -270,6 +270,8 @@ def visualize_inclusions(
     Returns:
         Imagen con células segmentadas e inclusiones marcadas
     """
+    from visualization import visualize_inclusions as viz_inclusions
+    return viz_inclusions(original_image, segmented_image, all_inclusions, show_visualization)
     # Crear imagen colorizada para visualización
     from skimage.color import label2rgb
     

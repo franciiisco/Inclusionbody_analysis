@@ -591,64 +591,8 @@ def visualize_inclusions_v2(original_image: np.ndarray, segmented_image: np.ndar
     Returns:
         Imagen con células segmentadas e inclusiones marcadas
     """
-    from skimage.color import label2rgb
-    import matplotlib.pyplot as plt
-    
-    # Convertir a BGR si está en escala de grises
-    if len(original_image.shape) == 2:
-        original_image_color = cv2.cvtColor(original_image, cv2.COLOR_GRAY2BGR)
-    else:
-        original_image_color = original_image.copy()
-    
-    # Colorear células segmentadas
-    segmentation_overlay = label2rgb(segmented_image, image=original_image, bg_label=0, alpha=0.3)
-    segmentation_overlay = (segmentation_overlay * 255).astype(np.uint8)
-    
-    # Convertir a BGR para visualización con OpenCV
-    if segmentation_overlay.shape[2] == 3 and segmentation_overlay.dtype == np.uint8:
-        segmentation_overlay_bgr = cv2.cvtColor(segmentation_overlay, cv2.COLOR_RGB2BGR)
-    else:
-        segmentation_overlay_bgr = segmentation_overlay
-    
-    # Superponer visualización de segmentación
-    result = segmentation_overlay_bgr.copy()
-    
-    # Marcar inclusiones con sus contornos reales (o con círculos si no hay contorno disponible)
-    for cell_id, inclusions in all_inclusions.items():
-        for inc in inclusions:
-            # Color basado en el tamaño relativo a la célula
-            # Verde para inclusiones pequeñas, amarillo para medianas, rojo para grandes
-            cell_mask = (segmented_image == cell_id)
-            cell_area = np.sum(cell_mask)
-            ratio = inc['area'] / cell_area if cell_area > 0 else 0
-            
-            if ratio < 0.1:
-                color = (0, 255, 0)  # Verde: inclusión pequeña
-            elif ratio < 0.3:
-                color = (0, 255, 255)  # Amarillo: inclusión mediana
-            else:
-                color = (0, 0, 255)  # Rojo: inclusión grande
-            
-            # Dibujar contorno real si está disponible
-            if 'contour' in inc and inc['contour']:
-                # Convertir la lista de puntos a formato numpy para OpenCV
-                contour = np.array(inc['contour']).reshape((-1, 1, 2)).astype(np.int32)
-                cv2.drawContours(result, [contour], 0, color, 1)
-            else:
-                # Caer en método anterior (círculo) si no hay contorno disponible
-                cx, cy = int(inc['centroid_x']), int(inc['centroid_y'])
-                radius = int(np.sqrt(inc['area'] / np.pi))
-                cv2.circle(result, (cx, cy), max(1, radius), color, 1)
-    
-    # Mostrar la visualización si está habilitado
-    if show_visualization:
-        plt.figure(figsize=(10, 8))
-        plt.imshow(cv2.cvtColor(result, cv2.COLOR_BGR2RGB))
-        plt.title("Detección de Inclusiones V2")
-        plt.axis('off')
-        plt.show()
-    
-    return result
+    from visualization import visualize_inclusions_v2 as viz_inclusions
+    return viz_inclusions(original_image, segmented_image, all_inclusions, show_visualization)
 
 
 def summarize_inclusions_v2(all_inclusions: Dict[int, List[Dict[str, Any]]],
@@ -663,56 +607,8 @@ def summarize_inclusions_v2(all_inclusions: Dict[int, List[Dict[str, Any]]],
     Returns:
         Diccionario con estadísticas resumidas
     """
-    # Inicializar estadísticas
-    total_cells = len(all_inclusions)
-    cells_with_inclusions = sum(1 for cell_id, incs in all_inclusions.items() if len(incs) > 0)
-    total_inclusions = sum(len(incs) for incs in all_inclusions.values())
-    
-    # Células sin inclusiones
-    cells_without_inclusions = total_cells - cells_with_inclusions
-    
-    # Porcentaje de células con inclusiones
-    percent_cells_with_inclusions = (cells_with_inclusions / total_cells * 100) if total_cells > 0 else 0
-    
-    # Número de inclusiones por célula
-    inclusions_per_cell = [len(incs) for incs in all_inclusions.values()]
-    avg_inclusions_per_cell = np.mean(inclusions_per_cell) if inclusions_per_cell else 0
-    std_inclusions_per_cell = np.std(inclusions_per_cell) if inclusions_per_cell else 0
-    
-    # Tamaño de inclusiones
-    all_inclusion_areas = [inc['area'] for incs in all_inclusions.values() for inc in incs]
-    avg_inclusion_area = np.mean(all_inclusion_areas) if all_inclusion_areas else 0
-    std_inclusion_area = np.std(all_inclusion_areas) if all_inclusion_areas else 0
-    
-    # Ratio de área de inclusiones respecto a células
-    inclusion_ratios = []
-    for cell_id, incs in all_inclusions.items():
-        # Calcular área de la célula
-        cell_mask = (segmented_image == cell_id)
-        cell_area = np.sum(cell_mask)
-        
-        if cell_area > 0 and incs:
-            # Suma de áreas de todas las inclusiones en esta célula
-            total_inclusion_area = sum(inc['area'] for inc in incs)
-            ratio = total_inclusion_area / cell_area
-            inclusion_ratios.append(ratio)
-    
-    avg_inclusion_ratio = np.mean(inclusion_ratios) if inclusion_ratios else 0
-    std_inclusion_ratio = np.std(inclusion_ratios) if inclusion_ratios else 0
-    
-    return {
-        'total_cells': total_cells,
-        'cells_with_inclusions': cells_with_inclusions,
-        'cells_without_inclusions': cells_without_inclusions,
-        'percent_cells_with_inclusions': percent_cells_with_inclusions,
-        'total_inclusions': total_inclusions,
-        'avg_inclusions_per_cell': avg_inclusions_per_cell,
-        'std_inclusions_per_cell': std_inclusions_per_cell,
-        'avg_inclusion_area': avg_inclusion_area,
-        'std_inclusion_area': std_inclusion_area,
-        'avg_inclusion_ratio': avg_inclusion_ratio,
-        'std_inclusion_ratio': std_inclusion_ratio
-    }
+    from analysis import summarize_inclusions
+    return summarize_inclusions(all_inclusions, segmented_image)
 
 
 def plot_inclusion_statistics_v2(summary: Dict[str, Any],
@@ -724,52 +620,8 @@ def plot_inclusion_statistics_v2(summary: Dict[str, Any],
         summary: Resumen estadístico generado por summarize_inclusions_v2
         all_inclusions: Diccionario de inclusiones por célula
     """
-    import matplotlib.pyplot as plt
-    
-    # Crear figura con 2x2 subplots
-    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-    
-    # 1. Distribución del número de inclusiones por célula
-    inclusions_per_cell = [len(incs) for incs in all_inclusions.values()]
-    axes[0, 0].hist(inclusions_per_cell, bins=max(10, max(inclusions_per_cell) if inclusions_per_cell else 1), 
-                   color='skyblue', edgecolor='black')
-    axes[0, 0].set_title('Distribución de Inclusiones por Célula')
-    axes[0, 0].set_xlabel('Número de Inclusiones')
-    axes[0, 0].set_ylabel('Frecuencia (Células)')
-    
-    # 2. Distribución de tamaños de inclusiones
-    all_inclusion_areas = [inc['area'] for incs in all_inclusions.values() for inc in incs]
-    if all_inclusion_areas:
-        axes[0, 1].hist(all_inclusion_areas, bins=20, color='lightgreen', edgecolor='black')
-        axes[0, 1].set_title('Distribución de Tamaños de Inclusiones')
-        axes[0, 1].set_xlabel('Área (píxeles)')
-        axes[0, 1].set_ylabel('Frecuencia')
-    
-    # 3. Pie chart: Porcentaje de células con/sin inclusiones
-    with_without = [summary['cells_with_inclusions'], summary['cells_without_inclusions']]
-    axes[1, 0].pie(with_without, labels=['Con inclusiones', 'Sin inclusiones'], 
-                  autopct='%1.1f%%', startangle=90, colors=['lightcoral', 'lightblue'])
-    axes[1, 0].set_title('Células con/sin Inclusiones')
-    
-    # 4. Distribución de ratio inclusión/célula
-    inclusion_ratios = []
-    for cell_id, incs in all_inclusions.items():
-        if incs:  # Solo células con inclusiones
-            total_inclusion_area = sum(inc['area'] for inc in incs)
-            # Asumimos que la información de área de célula está en los datos
-            # Si no hay datos directos, tendríamos que calcularla en este punto
-            cell_area = 1000  # Valor arbitrario si no tenemos el dato real
-            inclusion_ratios.append(total_inclusion_area / cell_area * 100)  # En porcentaje
-    
-    if inclusion_ratios:
-        axes[1, 1].hist(inclusion_ratios, bins=20, color='plum', edgecolor='black')
-        axes[1, 1].set_title('Ratio Área Inclusión/Célula')
-        axes[1, 1].set_xlabel('Porcentaje de Célula (%)')
-        axes[1, 1].set_ylabel('Frecuencia (Células)')
-    
-    # Ajustar diseño y mostrar
-    plt.tight_layout()
-    plt.show()
+    from analysis import plot_inclusion_statistics
+    plot_inclusion_statistics(summary, all_inclusions)
 
 
 if __name__ == "__main__":
