@@ -50,30 +50,6 @@ SEGMENT_CONFIG = {
 }
 
 # ------------------------------------------------------
-# |   Configuración de Detección de Inclusiones (v1)   |
-# ------------------------------------------------------
-
-'''
-Esta configuración es para la versión 1 de detección de inclusiones
-Se recomienda usar la versión 2 (DETECTION_V2_CONFIG) para un mejor rendimiento
-y resultados más precisos.
-
-----------------------------------------------------------
-ESTA CONFIGURACIÓN ESTÁ OBSOLTA Y NO SE RECOMIENDA SU USO
-----------------------------------------------------------
-'''
-
-DETECTION_CONFIG = {
-    'min_size': 2,  
-    'max_size': 600,
-    'threshold_offset': 0.05,    # Reducido de 0.1 para mayor sensibilidad
-    'min_contrast': 0.03,       # Reducido de 0.12 para mayor sensibilidad
-    'contrast_window': 3,       # Aumentado de 3 para mejorar el cálculo de contraste en áreas con inclusiones cercanas
-    'remove_border': False,
-    'min_circularity': 0.7      # Reducido de 0.7 para permitir objetos menos circulares (posiblemente fusionados)
-}
-
-# ------------------------------------------------------
 # |   Configuración de Detección de Inclusiones (v2)   |
 # ------------------------------------------------------
 

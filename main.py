@@ -3,17 +3,23 @@ Script principal para el análisis de inclusiones de polifosfatos en células ba
 """
 
 import os
+import glob
+import json
 import cv2
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
-import json
-import glob  # Importar glob aquí
+import traceback
 from src.preprocessing import preprocess_pipeline, visualize_preprocessing_steps
 from src.segmentation import segment_cells, visualize_segmentation, threshold_image, apply_morphological_operations
-from src.detection import detect_all_inclusions, visualize_inclusions, summarize_inclusions, plot_inclusion_statistics
+from src.analysis import (
+    summarize_inclusions, plot_inclusion_statistics, 
+    extract_metadata_from_filename, validate_filename_format, 
+    aggregate_inclusion_data
+)
 from src.detection_v2_0 import detect_all_inclusions_v2, visualize_inclusions_v2, summarize_inclusions_v2, plot_inclusion_statistics_v2
 from config import (
-    PREPROCESS_CONFIG, SEGMENT_CONFIG, DETECTION_CONFIG, DETECTION_V2_CONFIG,
+    PREPROCESS_CONFIG, SEGMENT_CONFIG, DETECTION_V2_CONFIG,
     DEVELOPMENT_MODE, VISUALIZATION_SETTINGS, STANDARD_MODE_CONFIG
 )
 
@@ -35,170 +41,14 @@ def process_image(
         detection_config: Configuración para la detección de inclusiones
         output_dir: Directorio para guardar resultados
     """
-    ''' 
-    ==========================================
-    Configuración de preprocesamiento
-    =========================================
-    En esta sección se definen los parámetros para el preprocesamiento de la imagen.
-    Se pueden ajustar según las características de las imágenes y los requisitos del análisis.
-    '''
-    if preprocess_config is None:
-        preprocess_config = PREPROCESS_CONFIG # Usar configuración importada
-    
-    ''' 
-    ==========================================
-    Configuración de segmentación de células
-    ==========================================
-    En esta sección se definen los parámetros para la segmentación de células.
-    Se pueden ajustar según las características de las imágenes y los requisitos del análisis.
-    '''
-    
-    if segment_config is None:
-        segment_config = SEGMENT_CONFIG # Usar configuración importada
-    
-    ''' 
-    ==========================================
-    Configuración de detección de inclusiones
-    ==========================================
-
-    En esta sección se definen los parámetros para la detección de inclusiones de polifosfatos.
-    Se pueden ajustar según las características de las imágenes y los requisitos del análisis.
-    '''
-
-    if detection_config is None:
-        detection_config = DETECTION_CONFIG # Usar configuración importada
-    
-    if output_dir is None:
-        output_dir = "data/processed"
-    
-    # Crear directorio de salida si no existe
-    os.makedirs(output_dir, exist_ok=True)
-    
-    # Cargar imagen
-    print(f"Cargando imagen: {image_path}")
-    original_image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
-    
-    if original_image is None:
-        raise FileNotFoundError(f"No se pudo cargar la imagen: {image_path}")
-    
-    # Guardar copia de la imagen original para detección de inclusiones
-    original_for_detection = original_image.copy()
-    
-    # Paso 1: Preprocesamiento
-    print("Aplicando preprocesamiento...")
-    preprocessed = preprocess_pipeline(original_image, preprocess_config)
-    
-    # Visualizar el preprocesamiento si está habilitado
-    if DEVELOPMENT_MODE and VISUALIZATION_SETTINGS.get('show_preprocessing_steps'):
-        visualize_preprocessing_steps(original_image, preprocess_config)
-    
-    # Guardar imagen preprocesada
-    base_filename = os.path.splitext(os.path.basename(image_path))[0]
-    preprocessed_path = os.path.join(output_dir, f"{base_filename}_preprocessed.png")
-    cv2.imwrite(preprocessed_path, preprocessed)
-    
-    # Paso 2: Segmentación
-    print("Segmentando células...")
-    
-    # Umbralización y operaciones morfológicas para visualización
-    binary = threshold_image(
-        preprocessed,
-        method=segment_config['threshold']['method'],
-        params=segment_config['threshold']['params']
+    # Utilizamos directamente la versión 2 de detección
+    return process_image_v2(
+        image_path=image_path,
+        preprocess_config=preprocess_config,
+        segment_config=segment_config,
+        detection_config=detection_config,
+        output_dir=output_dir
     )
-    binary = apply_morphological_operations(binary, segment_config['morphological'])
-    
-    # Segmentación completa
-    segmented = segment_cells(preprocessed, segment_config)
-    
-    # Visualizar la segmentación si está habilitado
-    if DEVELOPMENT_MODE and VISUALIZATION_SETTINGS.get('show_segmentation_results'):
-        visualize_segmentation(original_image, segmented, binary, draw_contours=False)
-    
-    # Guardar imagen segmentada
-    segmented_path = os.path.join(output_dir, f"{base_filename}_segmented.png")
-    segmented_vis = (segmented * 50).astype(np.uint8)  # Escalar para visualización
-    cv2.imwrite(segmented_path, segmented_vis)
-    
-    # Paso 3: Detección de inclusiones
-    print("Detectando inclusiones de polifosfatos...")
-    # Invertir la imagen original para la detección de inclusiones (brillantes sobre fondo oscuro)
-    inverted_for_detection = cv2.bitwise_not(original_for_detection)
-
-    # Ajustar los parámetros de detección en la configuración si es necesario
-    # Estos son los valores por defecto que se usarán si no se especifica nada en detection_config
-    # Asegúrate de que detection_config en main.py (o donde se llame) esté ajustado
-    # para inclusiones brillantes si no se pasan explícitamente.
-    # Ejemplo de cómo se vería la configuración actualizada en main.py:
-    # if detection_config is None:
-    #     detection_config = {
-    #         'min_size': 3,  
-    #         'max_size': 50, # Ajusta según tus necesidades
-    #         'threshold_offset': 0.2,  # Positivo para inclusiones brillantes
-    #         'min_contrast': 0.1,      
-    #         'contrast_window': 3,      
-    #         'remove_border': True,    
-    #         'min_circularity': 0.6     # Filtro de forma
-    #     }
-
-    all_inclusions = detect_all_inclusions(
-        inverted_for_detection,  # Usar la imagen invertida
-        segmented,
-        detection_config
-    )
-
-    # Visualizar resultados (asegurándonos de mostrar la visualización)
-    # Para la visualización, es mejor usar la imagen original no invertida para que los colores tengan sentido.
-    result_image = visualize_inclusions(
-        original_for_detection, # Usar la original (no invertida) para visualización
-        segmented, 
-        all_inclusions, 
-        show_visualization=(DEVELOPMENT_MODE and VISUALIZATION_SETTINGS.get('show_inclusion_detection'))
-    )
-    
-    # Guardar imagen con inclusiones detectadas
-    inclusions_path = os.path.join(output_dir, f"{base_filename}_inclusions.png")
-    cv2.imwrite(inclusions_path, result_image)
-    
-    # Generar estadísticas
-    summary = summarize_inclusions(all_inclusions, segmented)
-    
-    # Guardar estadísticas en formato JSON
-    stats_path = os.path.join(output_dir, f"{base_filename}_stats.json")
-    with open(stats_path, 'w') as f:
-        # Convertir valores numpy a tipos Python nativos para JSON
-        clean_summary = {k: float(v) if isinstance(v, (np.float32, np.float64)) else v 
-                         for k, v in summary.items()}
-        json.dump(clean_summary, f, indent=4)
-    
-    # Imprimir resumen
-    print("\nResumen de resultados:")
-    print(f"Total de células: {summary['total_cells']}")
-    print(f"Células con inclusiones: {summary['cells_with_inclusions']} ({summary['percent_cells_with_inclusions']:.1f}%)")
-    print(f"Total de inclusiones: {summary['total_inclusions']}")
-    print(f"Promedio de inclusiones por célula: {summary['avg_inclusions_per_cell']:.2f} ± {summary['std_inclusions_per_cell']:.2f}")
-    print(f"Tamaño promedio de inclusiones: {summary['avg_inclusion_area']:.2f} ± {summary['std_inclusion_area']:.2f} píxeles")
-    print(f"Ratio promedio inclusiones/célula: {summary['avg_inclusion_ratio']*100:.2f}% ± {summary['std_inclusion_ratio']*100:.2f}%")
-    
-    # Guardar gráficos estadísticos
-    if DEVELOPMENT_MODE and VISUALIZATION_SETTINGS.get('show_summary_plots'):
-        plt.figure(figsize=(12, 10))
-        plot_inclusion_statistics(summary, all_inclusions)
-        stats_plot_path = os.path.join(output_dir, f"{base_filename}_stats_plot.png")
-        plt.savefig(stats_plot_path)
-    
-    print(f"Procesamiento completado. Resultados guardados en: {output_dir}")
-    
-    return {
-        'original': original_image,
-        'preprocessed': preprocessed,
-        'segmented': segmented,
-        'binary_mask': binary,  # Añadimos la máscara binaria para referencia
-        'inclusions': all_inclusions,
-        'summary': summary,
-        'result_image': result_image
-    }
-
 
 def process_image_v2(
     image_path: str,
@@ -364,6 +214,7 @@ def batch_process_v2(
     input_dir: str,
     output_dir: str = None,
     file_pattern: str = "*.jpg",
+    enforce_naming_convention: bool = True,  # Nuevo parámetro para controlar la validación
     **configs
 ):
     """
@@ -373,8 +224,17 @@ def batch_process_v2(
         input_dir: Directorio con imágenes a procesar
         output_dir: Directorio para guardar resultados
         file_pattern: Patrón para seleccionar archivos
+        enforce_naming_convention: Si es True, valida que los nombres de archivo cumplan con el formato
+                                 CONDICION_BOTE_REPLICA_TIEMPO_NºIMAGEN
         **configs: Configuraciones para procesamiento
     """
+    import os
+    import glob
+    import json
+    import cv2
+    import numpy as np
+    import traceback
+    
     # Configurar directorio de salida
     if output_dir is None:
         output_dir = os.path.join(input_dir, "processed_v2")
@@ -392,17 +252,37 @@ def batch_process_v2(
     
     # Procesar cada imagen
     results = {}
+    image_results = []  # Para la agregación de datos
+    skipped_files = []
+    
     for i, img_path in enumerate(image_paths):
-        print(f"\nProcesando imagen {i+1}/{len(image_paths)}: {os.path.basename(img_path)}")
+        base_name = os.path.basename(img_path)
+        print(f"\nProcesando imagen {i+1}/{len(image_paths)}: {base_name}")
+        
+        # Validar formato del nombre de archivo
+        if enforce_naming_convention and not DEVELOPMENT_MODE and not validate_filename_format(img_path):
+            print(f"Error: El archivo {base_name} no cumple con el formato requerido (CONDICION_BOTE_REPLICA_TIEMPO_NºIMAGEN)")
+            print("Omitiendo este archivo...")
+            skipped_files.append(base_name)
+            continue
+        
         try:
             result = process_image_v2(
                 img_path, 
                 output_dir=output_dir, 
                 **configs
             )
-            results[os.path.basename(img_path)] = result['summary']
+            
+            # Guardar los resultados para el resumen
+            results[base_name] = result['summary']
+            
+            # Añadir a la lista para agregación
+            image_results.append((img_path, result['summary']))
+            
         except Exception as e:
-            print(f"Error procesando {img_path}: {e}")
+            print(f"Error procesando {base_name}: {e}")
+            traceback.print_exc()
+            skipped_files.append(base_name)
     
     # Guardar resultados consolidados
     summary_path = os.path.join(output_dir, "batch_summary_v2.json")
@@ -410,17 +290,54 @@ def batch_process_v2(
         # Limpiar valores numpy para JSON
         clean_results = {}
         for img, summary in results.items():
-            clean_results[img] = {k: float(v) if isinstance(v, (np.float32, np.float64)) else v 
-                                 for k, v in summary.items()}
+            clean_summary = {k: float(v) if isinstance(v, (np.float32, np.float64)) else v 
+                            for k, v in summary.items()}
+            clean_results[img] = clean_summary
         json.dump(clean_results, f, indent=4)
     
-    print(f"\nProcesamiento por lotes v2.0 completado. Resultados guardados en: {output_dir}")
+    # Generar agregaciones por condición/tiempo/réplica
+    if image_results:
+        aggregated_results = aggregate_inclusion_data(image_results)
+        
+        # Guardar resultados agregados
+        aggregated_path = os.path.join(output_dir, "aggregated_results_v2.json")
+        with open(aggregated_path, 'w') as f:
+            # Convertir valores numpy a tipos Python nativos para JSON
+            clean_aggregated = {}
+            for hierarchy, hierarchy_results in aggregated_results.items():
+                clean_hierarchy = {}
+                for key, result in hierarchy_results.items():
+                    clean_result = {k: float(v) if isinstance(v, (np.float32, np.float64)) else v 
+                                  for k, v in result.items()}
+                    clean_hierarchy[key] = clean_result
+                clean_aggregated[hierarchy] = clean_hierarchy
+            json.dump(clean_aggregated, f, indent=4)
+        
+        print(f"\nResultados agregados guardados en: {aggregated_path}")
+        print(f"\nProcesamiento por lotes v2.0 completado. Resultados guardados en: {output_dir}")
+    
+    # Si se omitieron archivos, mostrar un resumen
+    if skipped_files:
+        print(f"\nSe omitieron {len(skipped_files)} archivos por errores o formato de nombre incorrecto:")
+        for file in skipped_files[:10]:  # Mostrar solo los primeros 10 para no saturar la consola
+            print(f"- {file}")
+        if len(skipped_files) > 10:
+            print(f"... y {len(skipped_files) - 10} archivos más")
+    
+    return {
+        'processed_files': len(results),
+        'skipped_files': len(skipped_files),
+        'results': results,
+        'aggregated_results': aggregated_results if image_results else None,
+        'image_results': image_results
+    }
 
 
 def batch_process(
     input_dir: str,
     output_dir: str = None,
     file_pattern: str = "*.jpg",
+    enforce_naming_convention: bool = True,  # Nuevo parámetro para controlar la validación
     **configs
 ):
     """
@@ -430,116 +347,69 @@ def batch_process(
         input_dir: Directorio con imágenes a procesar
         output_dir: Directorio para guardar resultados
         file_pattern: Patrón para seleccionar archivos
+        enforce_naming_convention: Si es True, valida que los nombres de archivo cumplan con el formato
+                                 CONDICION_BOTE_REPLICA_TIEMPO_NºIMAGEN
         **configs: Configuraciones para procesamiento
     """
-    # Configurar directorio de salida
-    if output_dir is None:
-        output_dir = os.path.join(input_dir, "processed")
-    
-    os.makedirs(output_dir, exist_ok=True)
-    
-    # Encontrar todas las imágenes
-    image_paths = glob.glob(os.path.join(input_dir, file_pattern))
-    
-    if not image_paths:
-        print(f"No se encontraron imágenes con el patrón {file_pattern} en {input_dir}")
-        return
-    
-    print(f"Procesando {len(image_paths)} imágenes...")
-    
-    # Procesar cada imagen
-    results = {}
-    for i, img_path in enumerate(image_paths):
-        print(f"\nProcesando imagen {i+1}/{len(image_paths)}: {os.path.basename(img_path)}")
-        try:
-            result = process_image(
-                img_path, 
-                output_dir=output_dir, 
-                **configs
-            )
-            results[os.path.basename(img_path)] = result['summary']
-        except Exception as e:
-            print(f"Error procesando {img_path}: {e}")
-    
-    # Guardar resultados consolidados
-    summary_path = os.path.join(output_dir, "batch_summary.json")
-    with open(summary_path, 'w') as f:
-        # Limpiar valores numpy para JSON
-        clean_results = {}
-        for img, summary in results.items():
-            clean_results[img] = {k: float(v) if isinstance(v, (np.float32, np.float64)) else v 
-                                 for k, v in summary.items()}
-        json.dump(clean_results, f, indent=4)
-    
-    print(f"\nProcesamiento por lotes completado. Resultados guardados en: {output_dir}")
+    # Utilizamos directamente la versión 2 de batch_process
+    return batch_process_v2(
+        input_dir=input_dir,
+        output_dir=output_dir,
+        file_pattern=file_pattern,
+        enforce_naming_convention=enforce_naming_convention,
+        **configs
+    )
 
 
 if __name__ == "__main__":
+    # Esta sección solo se ejecuta cuando se llama directamente al script
+    # La GUI llamará directamente a las funciones batch_process o process_image
+    import os
+    import argparse
+    import traceback
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import cv2
+    import json
+    import glob
+    
     # Ejemplo de uso
     image_path = "data/raw/sample_image.png"  # Ajusta la ruta según tu estructura
-    
-    # Permitir seleccionar la versión de detección a través de argumentos de línea de comandos
-    import argparse
+      # Configuración de la línea de comandos
     parser = argparse.ArgumentParser(description='Análisis de inclusiones de polifosfatos en células bacterianas.')
-    parser.add_argument('--version', type=int, choices=[1, 2], default=2, 
-                       help='Versión del algoritmo de detección a usar (1=original, 2=mejorado)')
+    parser.add_argument('--batch', action='store_true',
+                       help='Procesar un lote de imágenes')
+    parser.add_argument('--input', type=str, default='data/raw',
+                       help='Directorio de entrada para el procesamiento por lotes')
+    parser.add_argument('--output', type=str, default=None,
+                       help='Directorio de salida para el procesamiento por lotes')
+    parser.add_argument('--pattern', type=str, default='*.png',
+                       help='Patrón para seleccionar archivos (ej: *.png, *.tif)')
+    parser.add_argument('--no-enforce-naming', action='store_true',
+                       help='No validar formato de nombres de archivo (formato: CONDICION_BOTE_REPLICA_TIEMPO_NºIMAGEN)')
     args = parser.parse_args()
     
-    # Usar la versión de detección seleccionada
-    detection_version = args.version
-    
+    # Configuración de parámetros
+    enforce_naming = not args.no_enforce_naming
     try:
-        if DEVELOPMENT_MODE:
-            print(f"Modo Desarrollo Activado: Usando detección v{detection_version}.0")
-            print("Mostrando visualizaciones según VISUALIZATION_SETTINGS.")
+        if args.batch:
+            print(f"Iniciando procesamiento por lotes desde: {args.input}")
+            print(f"Patrón de archivos: {args.pattern}")
+            print(f"Validación de nombres: {'desactivada' if args.no_enforce_naming else 'activada'}")
             
-            # En modo desarrollo, procesamos una imagen individual
-            if detection_version == 1:
-                print("Usando algoritmo de detección original (v1.0)")
-                results = process_image(image_path)
-            else:
-                print("Usando algoritmo de detección mejorado (v2.0)")
-                results = process_image_v2(image_path)
-                
-            # Si los gráficos de resumen están habilitados, muéstralos
-            if VISUALIZATION_SETTINGS.get('show_summary_plots'):
-                plt.show()
-
+            batch_process(
+                input_dir=args.input,
+                output_dir=args.output,
+                file_pattern=args.pattern,
+                enforce_naming_convention=enforce_naming
+            )
         else:
-            print("Modo Estándar Activado: No se mostrarán visualizaciones interactivas.")
-            run_type = STANDARD_MODE_CONFIG.get('run_type', 'single')
-
-            if run_type == 'single':
-                print("Ejecutando análisis para una sola imagen.")
-                
-                if detection_version == 1:
-                    print("Usando algoritmo de detección original (v1.0)")
-                    results = process_image(image_path)
-                else:
-                    print("Usando algoritmo de detección mejorado (v2.0)")
-                    results = process_image_v2(image_path)
-            elif run_type == 'batch':
-                print("Ejecutando análisis por lotes.")
-                input_dir = STANDARD_MODE_CONFIG.get('input_dir', "data/raw")
-                output_dir = STANDARD_MODE_CONFIG.get('output_dir', "data/processed")
-                file_pattern = STANDARD_MODE_CONFIG.get('file_pattern', "*.png")
-                
-                if detection_version == 1:
-                    print(f"Procesando lotes con algoritmo v1.0")
-                    print(f"Directorio de entrada: {input_dir}")
-                    print(f"Directorio de salida: {output_dir}")
-                    print(f"Patrón de archivos: {file_pattern}")
-                    batch_process(input_dir, output_dir, file_pattern)
-                else:
-                    print(f"Procesando lotes con algoritmo v2.0")
-                    print(f"Directorio de entrada: {input_dir}")
-                    print(f"Directorio de salida: {output_dir}_v2")
-                    print(f"Patrón de archivos: {file_pattern}")
-                    batch_process_v2(input_dir, f"{output_dir}_v2", file_pattern)
+            if DEVELOPMENT_MODE:
+                print("Modo de desarrollo activado. Se mostrarán visualizaciones interactivas.")
+                process_image_v2(image_path)
             else:
-                print(f"Tipo de ejecución no reconocido en STANDARD_MODE_CONFIG: {run_type}")
-        
+                print("Modo estándar. Procesando imagen individual...")
+                process_image_v2(image_path, **STANDARD_MODE_CONFIG)
     except Exception as e:
         print(f"Error durante el procesamiento: {e}")
-        import traceback
         traceback.print_exc()

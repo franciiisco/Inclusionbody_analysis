@@ -8,8 +8,16 @@ scipy>=1.7.0         # Procesamiento científico y filtrado de imágenes
 # Procesamiento de imágenes
 opencv-python>=4.6.0 # Biblioteca principal de visión por computadora
 scikit-image>=0.19.0 # Algoritmos avanzados de procesamiento de imágenes
+Pillow>=10.0.0       # Procesamiento y manipulación de imágenes
 
 # Visualización de resultados
 matplotlib>=3.5.0    # Generación de gráficos y visualizaciones
+
+# Análisis de datos
+pandas>=1.5.0        # Manipulación y análisis de datos tabulares
+openpyxl>=3.1.0      # Soporte para archivos Excel
+
+# Interfaz gráfica
+ttkbootstrap>=1.13.0 # Temas y estilo moderno para tkinter
 
 # argparse es parte de la biblioteca estándar de Python, no es necesario instalarlo
