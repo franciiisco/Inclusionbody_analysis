@@ -1,0 +1,107 @@
+El script `segmentation.py` se encarga de la segmentación de células bacterianas en imágenes de microscopía preprocesadas. Utiliza bibliotecas como OpenCV (`cv2`), Scikit-image (`skimage`), y SciPy (`scipy.ndimage`) para identificar y delimitar las células.
+
+El módulo define las siguientes funciones principales:
+
+1.  **`threshold_image(image, method='adaptive', params=None)`**
+    *   **Propósito**: Convertir la imagen preprocesada en una imagen binaria, separando las células (primer plano) del fondo.
+    *   **Parámetros**:
+        *   `image`: Imagen de entrada preprocesada (NumPy array).
+        *   `method`: Método de umbralización.
+            *   `'adaptive'`:
+                *   **Descripción del Algoritmo**: La umbralización adaptativa calcula un umbral diferente para cada región pequeña de la imagen. Esto es útil cuando la iluminación no es uniforme. Se utiliza `cv2.adaptiveThreshold` con `cv2.ADAPTIVE_THRESH_GAUSSIAN_C`, donde el umbral es una media ponderada gaussiana de los píxeles vecinos menos una constante `C`. `block_size` define el tamaño de la vecindad.
+            *   `'otsu'`:
+                *   **Descripción del Algoritmo**: El método de Otsu (`cv2.threshold` con `cv2.THRESH_OTSU`) determina automáticamente un umbral global óptimo a partir del histograma de la imagen. Asume que la imagen contiene dos clases de píxeles (fondo y primer plano) y calcula el umbral que minimiza la varianza intra-clase (o equivalentemente, maximiza la varianza inter-clase).
+            *   `'binary'`:
+                *   **Descripción del Algoritmo**: Umbralización binaria simple (`cv2.threshold` con `cv2.THRESH_BINARY`). Todos los píxeles con intensidad superior a un `threshold` dado se establecen a `max_value` (generalmente 255, blanco), y los demás a 0 (negro).
+        *   `params`: Diccionario con parámetros específicos del método (`block_size`, `C` para adaptativo; `max_value` para Otsu y binario; `threshold` para binario).
+    *   **Salida**: Imagen binaria (NumPy array).
+    *   **Nota**: El bucle para actualizar `params` con `defaults` está incompleto en el script original.
+
+2.  **`apply_morphological_operations(binary_image, operations=None)`**
+    *   **Propósito**: Mejorar la calidad de la máscara binaria mediante operaciones morfológicas para eliminar ruido, separar objetos débilmente conectados o rellenar huecos.
+    *   **Parámetros**:
+        *   `binary_image`: Imagen binaria de entrada.
+        *   `operations`: Lista de tuplas, donde cada tupla es `(nombre_operacion, parametros_operacion)`.
+            *   `'erode'`:
+                *   **Descripción del Algoritmo**: La erosión (`cv2.erode`) encoge las regiones de primer plano (blancas). Desliza un kernel sobre la imagen; un píxel del primer plano solo se mantiene si todos los píxeles bajo el kernel son del primer plano. Útil para eliminar pequeños puntos de ruido y adelgazar objetos.
+            *   `'dilate'`:
+                *   **Descripción del Algoritmo**: La dilatación (`cv2.dilate`) expande las regiones de primer plano. Un píxel se convierte en primer plano si al menos un píxel bajo el kernel es del primer plano. Útil para rellenar pequeños huecos y conectar componentes cercanos.
+            *   `'open'`:
+                *   **Descripción del Algoritmo**: La apertura (`cv2.morphologyEx` con `cv2.MORPH_OPEN`) es una erosión seguida de una dilatación con el mismo kernel. Elimina pequeños objetos (ruido) y suaviza contornos sin cambiar significativamente el área de los objetos más grandes.
+            *   `'close'`:
+                *   **Descripción del Algoritmo**: El cierre (`cv2.morphologyEx` con `cv2.MORPH_CLOSE`) es una dilatación seguida de una erosión. Rellena pequeños huecos dentro de los objetos y une componentes cercanos.
+        *   `params` dentro de `operations`: `kernel_size` (tamaño del elemento estructurante, usualmente elíptico aquí) e `iterations`.
+    *   **Salida**: Imagen binaria modificada.
+    *   **Nota**: El bloque `if/elif` para aplicar las operaciones está vacío en el script original.
+
+3.  **`segment_cells_enhanced(image, min_cell_size=60, min_distance=20, gaussian_sigma=1.0, find_markers_method='distance')`**
+    *   **Propósito**: Segmentar células utilizando un enfoque basado en la transformada de distancia y el algoritmo watershed, diseñado para separar células agrupadas.
+    *   **Descripción del Algoritmo**:
+        1.  **Suavizado**: Se aplica un filtro Gaussiano (`cv2.GaussianBlur`) para reducir el ruido y facilitar la umbralización.
+        2.  **Umbralización**: Se utiliza el método de Otsu (`cv2.threshold`) para obtener una máscara binaria inicial de las células.
+        3.  **Transformada de Distancia**: Se calcula `ndi.distance_transform_edt` sobre la máscara binaria. Para cada píxel del primer plano, esta transformación calcula la distancia al píxel de fondo más cercano. Los valores más altos indican que el píxel está más "dentro" de un objeto.
+        4.  **Encontrar Marcadores para Watershed**: Los marcadores son regiones iniciales que se sabe con certeza que pertenecen a diferentes células.
+            *   Si `find_markers_method == 'distance'`: Se utiliza `skimage.feature.peak_local_max` sobre la transformada de distancia para encontrar máximos locales. Estos picos suelen corresponder a los centros de las células. `min_distance` asegura que los marcadores estén suficientemente separados.
+            *   Si `find_markers_method == 'threshold'`: Se umbraliza la transformada de distancia normalizada y luego se encuentran componentes conectados (`cv2.connectedComponents`) para usarlos como marcadores.
+        5.  **Algoritmo Watershed**: Se aplica `skimage.segmentation.watershed`. Imagina la negativa de la transformada de distancia como un paisaje topográfico donde los valores altos (centros de células) son cuencas. El algoritmo "inunda" estas cuencas a partir de los marcadores. Las líneas donde se encuentran las aguas de diferentes cuencas forman los límites de segmentación. La `mask=img_thresh` asegura que la segmentación solo ocurra dentro de las regiones de la máscara binaria inicial.
+        6.  **Eliminar Objetos Pequeños**: Se utiliza `skimage.morphology.remove_small_objects` para eliminar regiones segmentadas más pequeñas que `min_cell_size`, que probablemente sean ruido o fragmentos celulares.
+    *   **Salida**: Imagen etiquetada donde cada célula segmentada tiene un valor de píxel entero único.
+    *   **Nota**: El bucle para crear el array de marcadores cuando `find_markers_method == 'distance'` está incompleto.
+
+4.  **`filter_regions(labeled_image, min_area=50, max_area=2000, min_circularity=0.2, max_aspect_ratio=3.0)`**
+    *   **Propósito**: Filtrar las regiones segmentadas (células) basándose en sus propiedades geométricas para eliminar objetos que no son células o son segmentaciones erróneas.
+    *   **Descripción del Algoritmo**:
+        1.  Se utiliza `skimage.measure.regionprops` para calcular diversas propiedades de cada región etiquetada en `labeled_image`.
+        2.  Para cada región, se calcula:
+            *   `area`: Número de píxeles en la región.
+            *   `circularity`: Se calcula como `4 * np.pi * area / (perimeter^2)`. Un círculo perfecto tiene circularidad 1.
+            *   `aspect_ratio`: Relación entre el eje mayor y el eje menor de la elipse equivalente que tiene los mismos segundos momentos normalizados que la región (`region.major_axis_length / region.minor_axis_length`).
+        3.  Se conservan solo las regiones que cumplen con los criterios: `min_area <= area <= max_area`, `circularity >= min_circularity`, y `aspect_ratio <= max_aspect_ratio`.
+    *   **Salida**: Nueva imagen etiquetada conteniendo solo las regiones filtradas.
+    *   **Nota**: La lógica para asignar `new_label` y manejar `region.label <= 0` está incompleta en el script original.
+
+5.  **`segment_cells(image, config=None)`**
+    *   **Propósito**: Pipeline principal para la segmentación de células, que puede usar el método "enhanced" o uno más simple.
+    *   **Descripción del Algoritmo**:
+        *   Si `config.get('use_enhanced', True)`:
+            *   Llama a `segment_cells_enhanced` con los parámetros de `config`.
+        *   Si `use_enhanced` es `False`:
+            1.  Llama a `threshold_image` para obtener una máscara binaria.
+            2.  Llama a `apply_morphological_operations` para refinar la máscara.
+            3.  Llama a `watershed_segmentation` (descrita más abajo) para separar células.
+        *   Finalmente, llama a `filter_regions` para limpiar el resultado de la segmentación.
+    *   **Salida**: Imagen etiquetada final.
+
+6.  **`visualize_segmentation(original_image, segmented_image, binary_mask=None, draw_contours=True)`**
+    *   **Propósito**: Mostrar los resultados de la segmentación para inspección visual.
+    *   **Descripción del Algoritmo**:
+        *   Utiliza `matplotlib.pyplot` para crear una figura con subgráficos.
+        *   Muestra la `original_image`.
+        *   Si se proporciona `binary_mask`, la muestra.
+        *   Para `segmented_image`:
+            *   Si `draw_contours == True`: Intenta dibujar contornos de las regiones segmentadas sobre la imagen original. (La implementación de encontrar y dibujar contornos está incompleta en el script).
+            *   Si `draw_contours == False`: (La lógica para este caso está ausente en el script). Probablemente se intentaría mostrar las regiones con colores distintos usando `skimage.color.label2rgb` o similar.
+    *   **Nota**: Las partes para dibujar contornos y para mostrar etiquetas coloreadas están incompletas.
+
+7.  **`watershed_segmentation(image, binary_mask, min_distance=10)`**
+    *   **Propósito**: Implementación específica del algoritmo watershed usando OpenCV para separar células adyacentes.
+    *   **Descripción del Algoritmo**:
+        1.  **Transformada de Distancia**: `cv2.distanceTransform` calcula la distancia desde cada píxel binario del primer plano al píxel de fondo más cercano.
+        2.  **Normalización**: La transformada de distancia se normaliza a [0, 1].
+        3.  **Marcadores Seguros (Sure Foreground)**: Se umbraliza la transformada de distancia (`dist_transform > 0.3`) para identificar regiones que son definitivamente parte de las células. Estas serán las semillas para el watershed.
+        4.  **Región Desconocida**: Se dilata la `binary_mask` y se le resta `sure_fg` para encontrar las regiones donde no se está seguro si es fondo o primer plano (generalmente los bordes entre células).
+        5.  **Etiquetado de Marcadores**: Se encuentran componentes conectados en `sure_fg` (`cv2.connectedComponents`) para crear marcadores iniciales. Se suma 1 a todos los marcadores para que el fondo (si lo hubiera en `sure_fg`) sea 1 y no 0.
+        6.  **Marcar Región Desconocida**: Los píxeles en la región desconocida se marcan con 0 en la imagen de marcadores.
+        7.  **Conversión de Color**: La imagen de entrada se convierte a BGR (`cv2.cvtColor`) porque `cv2.watershed` espera una imagen de 3 canales.
+        8.  **Aplicar Watershed**: Se llama a `cv2.watershed` con la imagen coloreada y los marcadores. Modifica la imagen de marcadores para incluir las líneas de cuenca (límites de segmentación) con valor -1.
+    *   **Salida**: Imagen de marcadores modificada por `cv2.watershed`, donde las células segmentadas tienen etiquetas positivas y los límites tienen -1.
+
+**Consideraciones Adicionales del Script Original:**
+*   **Importaciones Faltantes**: El script utiliza `cv2`, `numpy as np` (implícitamente a través de `skimage` o `cv2`, pero también directamente), y `matplotlib.pyplot as plt` sin importarlos explícitamente al inicio del módulo.
+*   **Lógica Incompleta**:
+    *   En `threshold_image`: El bucle para actualizar `params` con `defaults` no asigna los valores.
+    *   En `apply_morphological_operations`: El bloque `if/elif` que debería aplicar las operaciones morfológicas (`erode`, `dilate`, `open`, `close`) está vacío.
+    *   En `segment_cells_enhanced`: El bucle para rellenar el array `markers` a partir de `local_maxi_coords` está vacío.
+    *   En `filter_regions`: La asignación a `filtered[region.slice] = new_label` (o similar) dentro del `if` de condiciones de filtro está ausente, y la gestión de `region.label <= 0` también.
+    *   En `visualize_segmentation`: La lógica para dibujar contornos (`for region in measure.regionprops...`) y para el caso `draw_contours=False` está incompleta.
+*   **Uso de skimage y OpenCV**: El script mezcla funciones de `skimage` y `OpenCV` para tareas similares (ej. watershed, transformada de distancia). Esto es común pero requiere atención a los formatos de datos y rangos esperados por cada biblioteca.

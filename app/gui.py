@@ -33,14 +33,17 @@ from app.tabs.analysis_tab import AnalysisTab
 from app.tabs.methodology_tab import MethodologyTab
 from app.tabs.info_tab import InfoTab
 
-class POLIP_Analyzer_GUI:
+class POLIP_Analyzer_GUI:    
     def __init__(self, root):
         self.root = root
-        self.root.title("POLIP Analyzer")
+        self.root.title("POLIP Analyzer")        
         self.root.geometry("1000x700")
         self.root.minsize(800, 600)
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
-          # Variables de control
+        
+        # Cargar el icono de la aplicación
+        self.load_app_icon()
+        # Variables de control
         self.input_dir = tk.StringVar(value="")
         self.output_dir = tk.StringVar(value="")
         self.file_pattern = tk.StringVar(value="*.tif")
@@ -58,6 +61,26 @@ class POLIP_Analyzer_GUI:
         
         # Cargar el logo en la esquina inferior izquierda
         self.load_logo()
+    
+    def load_app_icon(self):
+        """Cargar el icono de la aplicación"""
+        # Buscar el icono en múltiples ubicaciones posibles
+        icon_paths = [
+            "data/logo/icon.ico",  # Ruta relativa desde el directorio de trabajo
+            os.path.join(root_dir, "data", "logo", "icon.ico"),  # Ruta absoluta basada en root_dir
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "logo", "icon.ico")  # Ruta relativa al archivo actual
+        ]
+        
+        for icon_path in icon_paths:
+            if os.path.exists(icon_path):
+                try:
+                    self.root.iconbitmap(icon_path)
+                    print(f"Icono de aplicación cargado desde: {icon_path}")
+                    return
+                except Exception as e:
+                    print(f"Error al cargar el icono desde {icon_path}: {e}")
+        
+        print("No se encontró el archivo de icono. Agregue 'icon.ico' en 'data/logo/'")
     
     def load_logo(self):
         """Cargar y colocar el logo en la esquina inferior izquierda"""
@@ -330,6 +353,21 @@ def main():
         minsize=(800, 600),
         resizable=(True, True),
     )
+    
+    # Intentar cargar el icono directamente en la ventana principal también
+    icon_paths = [
+        "data/logo/icon.ico",
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "logo", "icon.ico")
+    ]
+    
+    for icon_path in icon_paths:
+        if os.path.exists(icon_path):
+            try:
+                root.iconbitmap(icon_path)
+                print(f"Icono de aplicación cargado en ventana principal desde: {icon_path}")
+                break
+            except Exception as e:
+                print(f"Error al cargar icono en ventana principal: {e}")
     
     # Crear la aplicación
     app = POLIP_Analyzer_GUI(root)

@@ -1,0 +1,142 @@
+El script `detection_v2_0.py` está diseñado para la detección y caracterización de inclusiones de polifosfatos dentro de células bacterianas previamente segmentadas. Esta es una versión mejorada (2.0) que busca optimizar la identificación de inclusiones, especialmente aquellas cercanas entre sí o con variaciones de contraste.
+
+Utiliza bibliotecas como Scikit-image (`skimage`) y OpenCV (`cv2`), aunque estas no están explícitamente importadas al inicio del módulo en el fragmento proporcionado.
+
+El módulo define las siguientes funciones principales:
+
+1.  **`create_cell_masks(segmented_image: np.ndarray) -> Dict[int, np.ndarray]`**
+    *   **Propósito**: Generar máscaras binarias individuales para cada célula identificada en la imagen segmentada.
+    *   **Descripción del Algoritmo**: Itera sobre las etiquetas únicas presentes en `segmented_image` (excluyendo la etiqueta 0, que usualmente representa el fondo). Para cada etiqueta (ID de célula), crea una nueva imagen binaria del mismo tamaño que la original, donde los píxeles correspondientes a esa célula específica son 1 (o True) y el resto son 0 (o False).
+    *   **Salida**: Un diccionario donde las claves son los IDs de las células y los valores son sus respectivas máscaras binarias (NumPy arrays).
+    *   **Nota**: La línea `cell_masks[label] = (segmented_image == label)` o similar está incompleta dentro del bucle `for`.
+
+2.  **`enhance_cell_contrast(image: np.ndarray, cell_mask: np.ndarray, method: str = 'clahe') -> np.ndarray`**
+    *   **Propósito**: Mejorar el contraste específicamente dentro de la región de una célula individual para facilitar la detección de inclusiones.
+    *   **Parámetros**:
+        *   `method`: Puede ser `'clahe'` (Contrast Limited Adaptive Histogram Equalization), `'histogram_equalization'` (Ecualización de Histograma estándar), o `None` (no hacer nada).
+    *   **Descripción del Algoritmo**:
+        1.  Extrae la región de interés (ROI) de la `image` original que corresponde a la `cell_mask`.
+        2.  Si `method == 'clahe'`: Aplica CLAHE a la ROI. CLAHE mejora el contraste localmente dividiendo la imagen en pequeñas regiones (tiles) y aplicando ecualización de histograma a cada una, limitando la amplificación del contraste para evitar ruido.
+        3.  Si `method == 'histogram_equalization'`: Aplica la ecualización de histograma estándar a la ROI, que intenta distribuir uniformemente las intensidades de los píxeles.
+        4.  La imagen original se actualiza con la ROI procesada.
+    *   **Salida**: Imagen con el contraste mejorado dentro de la célula.
+    *   **Nota**: Las implementaciones específicas de CLAHE (`cv2.createCLAHE().apply()`) y ecualización de histograma (`cv2.equalizeHist()`) dentro de los `if/elif` están incompletas.
+
+3.  **`apply_edge_enhancement(image: np.ndarray, cell_mask: np.ndarray) -> np.ndarray`**
+    *   **Propósito**: Realzar los bordes dentro de una célula para ayudar a distinguir inclusiones que están muy juntas.
+    *   **Descripción del Algoritmo**:
+        1.  Calcula las derivadas en X e Y usando el filtro de Sobel (`cv2.Sobel`) sobre la `image`.
+        2.  Calcula la magnitud del gradiente (`np.sqrt(sobelx**2 + sobely**2)`), que representa la fuerza de los bordes.
+        3.  Normaliza la magnitud a un rango de 0-255.
+        4.  Combina la imagen original con la imagen de magnitud de bordes usando una suma ponderada (`cv2.addWeighted`), dando más peso a la imagen original.
+        5.  Aplica este realce solo a los píxeles dentro de la `cell_mask`.
+    *   **Salida**: Imagen con bordes realzados dentro de la célula.
+
+4.  **`multilevel_threshold(image: np.ndarray, cell_mask: np.ndarray, sensitivity: float = 0.8, n_levels: int = 3) -> np.ndarray`**
+    *   **Propósito**: Detectar inclusiones con diferentes niveles de intensidad aplicando múltiples umbrales.
+    *   **Descripción del Algoritmo**:
+        1.  Extrae los valores de los píxeles de la `image` que están dentro de la `cell_mask`.
+        2.  Calcula la media y la desviación estándar de estos píxeles.
+        3.  Genera `n_levels` umbrales basados en la media y la desviación estándar, ajustados por `sensitivity`. La fórmula `mean_val + sensitivity * std_val * (i/n_levels)` sugiere que los umbrales son progresivamente más altos.
+        4.  Para cada umbral, crea una máscara binaria donde los píxeles por encima del umbral son 1.
+        5.  Combina todas estas máscaras binarias (probablemente con una operación OR lógica) para obtener la máscara final de inclusiones candidatas.
+    *   **Salida**: Máscara binaria de inclusiones candidatas.
+    *   **Nota**: El bucle `for threshold in thresholds:` que aplica los umbrales y combina los resultados está incompleto. La condición `if len(cell_pixels) == 0:` debería devolver una máscara vacía.
+
+5.  **`adaptive_local_threshold(image: np.ndarray, cell_mask: np.ndarray, block_size: int = 15, sensitivity: float = 0.8) -> np.ndarray`**
+    *   **Propósito**: Aplicar umbralización adaptativa local para detectar inclusiones, útil cuando el brillo de las inclusiones varía localmente.
+    *   **Descripción del Algoritmo**:
+        1.  Asegura que `block_size` sea impar (requerido por `cv2.adaptiveThreshold`).
+        2.  Calcula una constante `C` basada en la media y desviación estándar de los píxeles dentro de la célula, ajustada por `sensitivity`. Esta `C` se resta de la media local calculada por `cv2.adaptiveThreshold`.
+        3.  Crea una máscara temporal aplicando la `cell_mask` a la `image` (para procesar solo la célula).
+        4.  Aplica `cv2.adaptiveThreshold` (con método Gaussiano) a esta máscara temporal.
+        5.  Asegura que la máscara binaria resultante solo contenga píxeles dentro de la `cell_mask` original.
+    *   **Salida**: Máscara binaria de inclusiones candidatas.
+    *   **Nota**: La condición `if block_size % 2 == 0:` debería ajustar `block_size`. La condición `if len(cell_pixels) == 0:` debería devolver una máscara vacía.
+
+6.  **`separate_inclusions_watershed(binary_mask: np.ndarray, original_image: np.ndarray, min_distance: int = 5, intensity_weight: float = 0.7) -> np.ndarray`**
+    *   **Propósito**: Separar inclusiones que aparecen conectadas en la `binary_mask` inicial, utilizando el algoritmo watershed con varias mejoras.
+    *   **Descripción del Algoritmo (incluyendo MEJORAS)**:
+        1.  Si `binary_mask` está vacía, retorna la máscara original.
+        2.  **MEJORA 1 (Resaltar Pequeñas Estructuras)**: Aplica un filtro top-hat (`cv2.morphologyEx` con `cv2.MORPH_TOPHAT`) a `binary_mask` para resaltar pequeñas estructuras brillantes que podrían ser inclusiones o partes de ellas. El resultado se suma a la `binary_mask`.
+        3.  **MEJORA 2 (Reducir Conexiones Delgadas)**: Aplica una operación de apertura (`cv2.morphologyEx` con `cv2.MORPH_OPEN`) con un kernel pequeño a la máscara mejorada para eliminar conexiones delgadas entre inclusiones.
+        4.  **Transformada de Distancia**: Calcula `cv2.distanceTransform` sobre la máscara abierta. Los valores altos indican centros de objetos.
+        5.  **MEJORA 3 (Suavizar Transformada)**: Aplica un filtro Gaussiano (`cv2.GaussianBlur`) a la transformada de distancia para suavizarla y ayudar a definir mejor los máximos locales.
+        6.  Normaliza la transformada de distancia suavizada a 0-255.
+        7.  **Encontrar Marcadores (Picos Locales)**: Utiliza `skimage.feature.peak_local_max` sobre la transformada de distancia suavizada para encontrar los picos, que servirán como marcadores para el watershed. `min_distance` controla la separación mínima entre picos. **MEJORA 4**: `threshold_rel=0.3` (en lugar de un valor más alto como 0.5 o 0.7) se usa para ser más sensible y detectar más picos, potencialmente identificando inclusiones más débiles o más pequeñas como marcadores separados.
+        8.  Crea una imagen de marcadores (`markers`) etiquetando los picos encontrados usando `skimage.measure.label`.
+        9.  **Imagen Combinada para Watershed**: Crea una imagen combinando la `original_image` (ponderada por `intensity_weight`) y la `dist_normalized` (ponderada por `1-intensity_weight`). La idea es que tanto la intensidad original como la "centralidad" (de la transformada de distancia) contribuyan a la superficie sobre la que opera el watershed.
+        10. **MEJORA 5 (Invertir Imagen Combinada)**: Invierte la imagen combinada (`255 - combined_image`). El algoritmo watershed de `skimage` trata los valores bajos como "cuencas" que se llenan. Al invertir, las regiones de alta intensidad/centralidad (que queremos que sean los centros de las inclusiones) se convierten en valores bajos (cuencas).
+        11. **Aplicar Watershed**: Ejecuta `skimage.segmentation.watershed` usando la imagen combinada invertida, los `markers` y la `binary_mask` original como máscara de la región donde se permite la segmentación.
+        12. Convierte el resultado del watershed a una máscara binaria.
+        13. **MEJORA 6 (Análisis de Regiones Alargadas)**: Etiqueta la máscara resultante. Itera sobre las propiedades de las regiones. (La lógica para dividir regiones alargadas si `prop.eccentricity` es alta está incompleta).
+    *   **Salida**: Máscara binaria mejorada con inclusiones potencialmente separadas.
+    *   **Nota**: La condición `if np.sum(binary_mask) == 0:` debería devolver `binary_mask`. La lógica de la MEJORA 6 está incompleta.
+
+7.  **`filter_inclusions(labeled_mask: np.ndarray, intensity_image: np.ndarray, min_size: int = 5, max_size: int = 1500, min_circularity: float = 0.4, min_contrast: float = 0.08, texture_analysis: bool = True) -> Tuple[np.ndarray, List[Dict[str, Any]]]`**
+    *   **Propósito**: Filtrar las inclusiones candidatas (de `labeled_mask`) basándose en propiedades como tamaño, forma, contraste con el entorno y, opcionalmente, textura.
+    *   **Descripción del Algoritmo**:
+        1.  Calcula propiedades de las regiones de `labeled_mask` usando `skimage.measure.regionprops`, utilizando `intensity_image` para calcular propiedades basadas en intensidad (como `mean_intensity`).
+        2.  Itera sobre cada propiedad de región (`prop`):
+            *   Calcula `area`, `perimeter`, `circularity` (`4 * np.pi * area / perimeter**2`).
+            *   Calcula `contrast`: Podría ser la diferencia entre la intensidad media de la inclusión y la intensidad media de su entorno (la implementación de esto no está detallada en el bucle).
+            *   Si `texture_analysis == True`: Realizaría análisis de textura (ej. Haralick, LBP) sobre la región de la inclusión (implementación no detallada).
+            *   Aplica filtros: `min_size <= area <= max_size`, `circularity >= min_circularity`, `contrast >= min_contrast`.
+            *   Si la región es válida, se añade su etiqueta a `valid_regions` y sus propiedades a `inclusion_props`.
+        3.  Crea una `filtered_mask` que solo contiene las regiones válidas.
+    *   **Salida**: Una tupla conteniendo la `filtered_mask` (NumPy array) y `inclusion_props` (lista de diccionarios con las propiedades de cada inclusión válida).
+    *   **Nota**: El bucle `for prop in props:` y la creación de `filtered_mask` están incompletos. El cálculo de contraste y el análisis de textura no están implementados en el fragmento.
+
+8.  **`detect_inclusions_in_cell_v2(original_image: np.ndarray, cell_mask: np.ndarray, config: Dict[str, Any]) -> List[Dict[str, Any]]]`**
+    *   **Propósito**: Pipeline completo para detectar inclusiones dentro de una única célula, utilizando la configuración proporcionada.
+    *   **Descripción del Algoritmo (Pasos)**:
+        1.  **Preprocesamiento Específico por Célula**: Aplica `enhance_cell_contrast` y `apply_edge_enhancement` a la `original_image` dentro de la `cell_mask`, según la `config`.
+        2.  **Detección por Umbralización**: Aplica `multilevel_threshold` o `adaptive_local_threshold` según la `config` para obtener una `binary_mask` inicial de inclusiones.
+        3.  **Operaciones Morfológicas**: Limpia `binary_mask` con apertura y cierre morfológico (`cv2.morphologyEx`).
+        4.  **Separación de Inclusiones**: Si la `binary_mask` no está vacía, aplica `separate_inclusions_watershed` (u otro método según `config`) para separar inclusiones conectadas.
+        5.  **Filtrado y Validación**: Etiqueta la `binary_mask` resultante (`measure.label`) y luego llama a `filter_inclusions` para obtener la lista final de propiedades de inclusiones.
+    *   **Salida**: Lista de diccionarios, donde cada diccionario contiene las propiedades de una inclusión detectada y validada.
+    *   **Nota**: Varias partes de la lógica interna (llamadas a funciones, asignaciones) están incompletas o son solo placeholders.
+
+9.  **`detect_all_inclusions_v2(image: np.ndarray, segmented_image: np.ndarray, config: Optional[Dict[str, Any]] = None) -> Dict[int, List[Dict[str, Any]]]`**
+    *   **Propósito**: Orquestar la detección de inclusiones para todas las células en la `segmented_image`.
+    *   **Descripción del Algoritmo (Conceptual)**:
+        1.  Llamaría a `create_cell_masks` para obtener máscaras individuales para cada célula.
+        2.  Iteraría sobre cada ID de célula y su máscara.
+        3.  Para cada célula, llamaría a `detect_inclusions_in_cell_v2` con la imagen original, la máscara de la célula actual y la configuración.
+        4.  Almacenaría los resultados (lista de propiedades de inclusiones) en un diccionario donde la clave es el ID de la célula.
+    *   **Salida**: Un diccionario que mapea el ID de cada célula a una lista de las propiedades de sus inclusiones detectadas.
+    *   **Nota**: La implementación de esta función está completamente vacía.
+
+10. **`visualize_inclusions_v2(original_image: np.ndarray, segmented_image: np.ndarray, all_inclusions: Dict[int, List[Dict[str, Any]]], show_visualization: bool = True) -> np.ndarray`**
+    *   **Propósito**: Crear una visualización que muestre la imagen original, las células segmentadas y las inclusiones detectadas dentro de ellas.
+    *   **Descripción del Algoritmo (Conceptual)**:
+        1.  Crearía una copia de la `original_image` (probablemente convertida a color si es gris) para dibujar sobre ella.
+        2.  Dibujaría los contornos de las células de `segmented_image`.
+        3.  Iteraría sobre `all_inclusions`. Para cada célula y cada inclusión dentro de ella, dibujaría el contorno de la inclusión (quizás con un color diferente) o marcaría su centroide.
+        4.  Si `show_visualization == True`, mostraría la imagen usando `matplotlib.pyplot` o `cv2.imshow`.
+    *   **Salida**: La imagen con las visualizaciones dibujadas (NumPy array).
+    *   **Nota**: La implementación de esta función está completamente vacía.
+
+11. **`summarize_inclusions_v2(all_inclusions: Dict[int, List[Dict[str, Any]]], segmented_image: np.ndarray) -> Dict[str, Any]`**
+    *   **Propósito**: Calcular estadísticas resumidas sobre las inclusiones detectadas en todas las células.
+    *   **Descripción del Algoritmo (Conceptual)**:
+        1.  Calcularía el número total de células con inclusiones.
+        2.  Calcularía el número total de inclusiones.
+        3.  Calcularía estadísticas agregadas sobre las propiedades de las inclusiones (ej. tamaño medio, área media, circularidad media, etc.).
+        4.  Podría calcular la distribución del número de inclusiones por célula.
+    *   **Salida**: Un diccionario con las estadísticas resumidas.
+    *   **Nota**: La implementación de esta función está completamente vacía.
+
+12. **`plot_inclusion_statistics_v2(summary: Dict[str, Any], all_inclusions: Dict[int, List[Dict[str, Any]]]) -> None`**
+    *   **Propósito**: Crear gráficos (plots) para visualizar las estadísticas de las inclusiones (ej. histogramas de tamaños, distribuciones de circularidad).
+    *   **Descripción del Algoritmo (Conceptual)**:
+        *   Utilizaría `matplotlib.pyplot` para generar varios tipos de gráficos basados en los datos de `summary` y `all_inclusions`.
+    *   **Salida**: Ninguna (muestra o guarda los gráficos).
+    *   **Nota**: La implementación de esta función está completamente vacía.
+
+**Consideraciones Adicionales del Script Original:**
+*   **Importaciones Faltantes**: El script utiliza funciones y constantes de `cv2` (OpenCV), `numpy` (como `np`), y `matplotlib.pyplot` (para visualización, implícito en las funciones de plot) sin importarlos explícitamente al inicio del módulo. `skimage` se importa parcialmente.
+*   **Lógica Incompleta**: Muchas funciones tienen bucles o bloques condicionales con la lógica de implementación faltante o solo como placeholders (comentarios `pass` implícitos o líneas vacías). Esto es especialmente notable en `create_cell_masks`, `enhance_cell_contrast`, `multilevel_threshold`, `separate_inclusions_watershed` (Mejora 6), `filter_inclusions`, `detect_inclusions_in_cell_v2`, y todas las funciones a partir de `detect_all_inclusions_v2` están completamente vacías.
+*   **Manejo de Errores/Casos Borde**: Algunas funciones tienen comprobaciones iniciales para casos vacíos (ej. `if len(cell_pixels) == 0:`), pero la acción a tomar (ej. devolver una máscara vacía apropiada) no está completamente implementada.
+*   **Consistencia de Parámetros**: Se debe asegurar que los parámetros pasados a través de `config` en `detect_inclusions_in_cell_v2` y `detect_all_inclusions_v2` se utilicen consistentemente en las funciones llamadas.

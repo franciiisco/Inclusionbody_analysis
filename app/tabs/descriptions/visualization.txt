@@ -1,0 +1,97 @@
+Módulo: visualization.py
+Ruta: c:\Users\fmarquez\Desktop\POLIP_Analizer\src\visualization.py
+
+Descripción General:
+Este módulo se dedica a generar representaciones visuales de los resultados del procesamiento de imágenes, específicamente la segmentación de células y la detección de inclusiones de polifosfatos. Ofrece funciones para superponer las inclusiones detectadas sobre las imágenes originales y para crear gráficos estadísticos que resumen las características de estas inclusiones.
+
+Dependencias Principales:
+- Externas:
+  - numpy (np): Utilizado para manipulación de arrays, cálculos numéricos (ej. `np.sqrt`, `np.sum`) y conversión de tipos de datos.
+  - cv2 (OpenCV): Empleado para operaciones de procesamiento de imágenes como conversión de espacios de color (`cv2.cvtColor`), dibujo de formas (`cv2.circle`, `cv2.drawContours`).
+  - matplotlib.pyplot (plt): Usado para la creación y visualización de gráficos estadísticos y para mostrar imágenes.
+  - skimage.color (label2rgb): Utilizado para colorear regiones segmentadas de una imagen.
+- Estándar de Python:
+  - typing (Dict, Any, List)
+
+Detalle de Funciones:
+
+1.  `visualize_inclusions(original_image: np.ndarray, segmented_image: np.ndarray, all_inclusions: Dict[int, List[Dict[str, Any]]], show_visualization: bool = True) -> np.ndarray`
+    *   Propósito: Crear una imagen que muestra las células segmentadas y las inclusiones detectadas superpuestas sobre la imagen original.
+    *   Parámetros:
+        *   `original_image`: Imagen original (array NumPy), puede ser en escala de grises o color.
+        *   `segmented_image`: Imagen (array NumPy) donde cada célula segmentada tiene un ID de píxel único.
+        *   `all_inclusions`: Diccionario donde las claves son IDs de células y los valores son listas de diccionarios, cada uno representando una inclusión con sus propiedades (ej. 'centroid', 'area', 'mean_intensity').
+        *   `show_visualization`: Booleano que indica si se debe mostrar la imagen resultante usando `matplotlib.pyplot`.
+    *   Algoritmo:
+        1.  Convierte la `original_image` a formato BGR (3 canales) si está en escala de grises.
+        2.  Utiliza `label2rgb` de `skimage.color` para crear una superposición coloreada de las células segmentadas sobre la imagen original, con una transparencia alfa.
+        3.  Convierte esta superposición a formato BGR si es necesario.
+        4.  Crea una copia de la superposición de segmentación como imagen base (`result`).
+        5.  Itera sobre cada célula y sus inclusiones en `all_inclusions`:
+            a.  Obtiene el centroide (`x`, `y`) y el área de cada inclusión.
+            b.  Calcula un radio para un círculo basado en el área de la inclusión (asegurando un radio mínimo).
+            c.  Define un color para la inclusión (rojo en BGR por defecto). La intensidad normalizada se calcula pero no se usa para variar el color en esta versión.
+            d.  Dibuja un círculo (`cv2.circle`) en la posición del centroide de la inclusión sobre la imagen `result`.
+        6.  Si `show_visualization` es `True`:
+            a.  Convierte la imagen `result` de BGR a RGB (para `matplotlib`).
+            b.  Muestra la imagen usando `plt.imshow` con un título y ejes desactivados.
+    *   Retorno: Un array NumPy representando la imagen con las células segmentadas y las inclusiones marcadas (en formato BGR).
+    *   Consideraciones:
+        *   El color de las inclusiones es fijo (rojo). La variable `intensity_normalized` se calcula pero no se utiliza para modular el color o la apariencia de la inclusión.
+
+2.  `visualize_inclusions_v2(original_image: np.ndarray, segmented_image: np.ndarray, all_inclusions: Dict[int, List[Dict[str, Any]]], show_visualization: bool = True) -> np.ndarray`
+    *   Propósito: Versión mejorada de la visualización de inclusiones, que puede dibujar los contornos reales de las inclusiones y colorearlas según su tamaño relativo a la célula.
+    *   Parámetros: Idénticos a `visualize_inclusions`.
+    *   Algoritmo:
+        1.  Conversión de `original_image` a BGR y creación de superposición de segmentación, similar a `visualize_inclusions`.
+        2.  Itera sobre cada célula y sus inclusiones en `all_inclusions`:
+            a.  Calcula el área de la célula actual a partir de `segmented_image`.
+            b.  Calcula el ratio del área de la inclusión respecto al área de la célula.
+            c.  Determina el color de la inclusión basado en este ratio:
+                *   Verde: ratio < 0.1 (pequeña)
+                *   Amarillo: 0.1 <= ratio < 0.3 (mediana)
+                *   Rojo: ratio >= 0.3 (grande)
+            d.  Si la inclusión tiene un campo 'contour' con datos válidos:
+                i.  Convierte los puntos del contorno al formato requerido por `cv2.drawContours`.
+                ii. Dibuja el contorno (`cv2.drawContours`) sobre la imagen `result`.
+            e.  Si no hay contorno disponible, recurre a dibujar un círculo (`cv2.circle`) en el centroide de la inclusión (usando `inc['centroid_x']`, `inc['centroid_y']`), similar a `visualize_inclusions`.
+        3.  Si `show_visualization` es `True`, muestra la imagen resultante (convirtiendo de BGR a RGB) con `matplotlib`.
+    *   Retorno: Un array NumPy representando la imagen con las células segmentadas y las inclusiones marcadas (en formato BGR).
+    *   Consideraciones:
+        *   Requiere que el diccionario de inclusiones (`inc`) pueda contener opcionalmente la clave 'contour' con los puntos del contorno, y 'centroid_x', 'centroid_y' si no hay contorno.
+        *   El coloreado dinámico según el tamaño relativo es una mejora visual significativa.
+
+3.  `plot_inclusion_statistics(summary: Dict[str, Any], all_inclusions: Dict[int, List[Dict[str, Any]]]) -> None`
+    *   Propósito: Generar y mostrar un conjunto de gráficos estadísticos que resumen las propiedades de las inclusiones detectadas.
+    *   Parámetros:
+        *   `summary`: Un diccionario con estadísticas resumidas (ej. el devuelto por `analysis.summarize_inclusions`), que debe contener claves como 'cells_with_inclusions' y 'cells_without_inclusions'.
+        *   `all_inclusions`: Diccionario de inclusiones por célula, usado para calcular distribuciones.
+    *   Algoritmo:
+        1.  Crea una figura de `matplotlib` con una disposición de 2x2 subplots.
+        2.  **Subplot 1 (axes[0, 0]): Histograma de Inclusiones por Célula.**
+            *   Calcula el número de inclusiones para cada célula.
+            *   Genera un histograma de estas cuentas.
+        3.  **Subplot 2 (axes[0, 1]): Histograma de Tamaños de Inclusiones.**
+            *   Recopila las áreas de todas las inclusiones individuales.
+            *   Genera un histograma de estas áreas si hay inclusiones.
+        4.  **Subplot 3 (axes[1, 0]): Gráfico de Pastel de Células con/sin Inclusiones.**
+            *   Utiliza los valores de `summary['cells_with_inclusions']` y `summary['cells_without_inclusions']`.
+            *   Genera un gráfico de pastel mostrando el porcentaje de cada categoría.
+        5.  **Subplot 4 (axes[1, 1]): Histograma del Ratio Área Inclusión/Célula.**
+            *   Para cada célula con inclusiones, calcula el área total de sus inclusiones.
+            *   **Suposición Crítica:** Asume un `cell_area = 1000` (valor fijo y arbitrario) si no se puede obtener el área real de la célula desde los datos de entrada. Esto es una limitación importante.
+            *   Calcula el ratio (área de inclusiones / área de célula) * 100.
+            *   Genera un histograma de estos ratios si hay datos.
+        6.  Ajusta el diseño de los subplots (`plt.tight_layout()`) y muestra la figura (`plt.show()`).
+    *   Retorno: `None`.
+    *   Consideraciones y Puntos de Mejora:
+        *   **Área Celular Fija en Ratio Plot:** La mayor limitación es el uso de un `cell_area = 1000` arbitrario en el cálculo del ratio inclusión/célula. Para que este gráfico sea preciso, la función debería recibir las áreas celulares reales (ej. desde `segmented_image` o como parte de `summary` o `all_inclusions`). El comentario "// Asumimos que la información de área de célula está en los datos // Si no hay datos directos, tendríamos que calcularla en este punto" indica conciencia del problema, pero la solución implementada es un placeholder.
+        *   **Robustez:** La función podría ser más robusta ante datos faltantes en `summary` o `all_inclusions` (ej. si `all_inclusions` está vacío, algunos cálculos podrían fallar o generar gráficos vacíos sin advertencias claras, aunque hay algunas comprobaciones como `if all_inclusion_areas:`).
+        *   **Personalización:** Los gráficos tienen títulos y etiquetas, pero no ofrecen parámetros para personalizar colores, títulos, número de bins, etc., desde fuera de la función.
+
+Consideraciones Adicionales del Módulo:
+
+*   **Consistencia en Nombres de Claves:** La función `visualize_inclusions_v2` espera `inc['centroid_x']` y `inc['centroid_y']` si no hay contorno, mientras que `visualize_inclusions` espera `inclusion['centroid']` (una tupla). Esto podría llevar a errores si se intercambian los datos de entrada entre estas funciones sin adaptar la estructura del diccionario de inclusiones.
+*   **Manejo de Colores:** Las conversiones entre BGR (OpenCV) y RGB (Matplotlib) se manejan correctamente, lo cual es crucial para la correcta visualización de colores.
+*   **Eficiencia:** Para un número muy grande de células o inclusiones, la iteración en Python para dibujar cada inclusión podría volverse lenta. Sin embargo, para casos de uso típicos en microscopía, es probable que sea suficientemente eficiente.
+*   **Modularidad:** El módulo está bien enfocado en tareas de visualización. La función `plot_inclusion_statistics` es referenciada por el módulo `analysis.py`, lo que demuestra una buena separación de responsabilidades.
