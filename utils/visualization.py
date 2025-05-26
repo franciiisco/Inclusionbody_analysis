@@ -53,10 +53,10 @@ def create_plots(parent, data):
         conditions[condition].sort(key=lambda x: x[0])
     ax1 = fig.add_subplot(211)
     ax2 = fig.add_subplot(212)
-    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']    
     for i, (condition, times) in enumerate(conditions.items()):
         color = colors[i % len(colors)]
-        x_values = [time for time, _ in times]
+        x_values = [int(time.replace('t', '')) for time, _ in times]
         y_values = [ct_data[key]['mean_avg_inclusions_per_cell'] for _, key in times]
         yerr_values = [ct_data[key]['std_avg_inclusions_per_cell'] for _, key in times]
         ax1.errorbar(x_values, y_values, yerr=yerr_values, marker='o', label=condition, color=color, capsize=4)
@@ -64,10 +64,10 @@ def create_plots(parent, data):
     ax1.set_xlabel("Tiempo", fontsize=10)
     ax1.set_ylabel("Inclusiones por célula", fontsize=10)
     ax1.legend(fontsize=9)
-    ax1.grid(True, linestyle='--', alpha=0.7)
+    ax1.grid(True, linestyle='--', alpha=0.7)    
     for i, (condition, times) in enumerate(conditions.items()):
         color = colors[i % len(colors)]
-        x_values = [time for time, _ in times]
+        x_values = [int(time.replace('t', '')) for time, _ in times]
         y_values = [ct_data[key]['mean_avg_inclusion_ratio']*100 for _, key in times]
         yerr_values = [ct_data[key]['std_avg_inclusion_ratio']*100 for _, key in times]
         ax2.errorbar(x_values, y_values, yerr=yerr_values, marker='o', label=condition, color=color, capsize=4)
