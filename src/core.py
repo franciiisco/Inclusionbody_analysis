@@ -24,6 +24,21 @@ from config import (
 )
 
 
+def convert_numpy_types(obj):
+    """Convert numpy types to native Python types for JSON serialization"""
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {key: convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_numpy_types(item) for item in obj]
+    return obj
+
+
 def process_image(
     image_path: str,
     preprocess_config=None,
@@ -179,9 +194,11 @@ def process_image_v2(
       # Guardar imagen con inclusiones detectadas (siempre se guarda como resultado principal)
     inclusions_path = os.path.join(output_dir, f"{base_filename}_inclusions_v2.png")
     cv2.imwrite(inclusions_path, result_image)
-    
-    # Generar estadísticas
+      # Generar estadísticas
     summary = summarize_inclusions_v2(all_inclusions, segmented)
+    
+    # Convert numpy types before JSON serialization
+    summary = convert_numpy_types(summary)
     
     # Guardar estadísticas en formato JSON
     stats_path = os.path.join(output_dir, f"{base_filename}_stats_v2.json")
@@ -220,6 +237,7 @@ def batch_process_v2(
     file_pattern: str = "*.jpg",
     enforce_naming_convention: bool = True,  # Nuevo parámetro para controlar la validación
     save_intermediate_images: bool = None,   # Nuevo parámetro para imágenes intermedias
+    progress_callback=None,  # New parameter for progress tracking
     **configs
 ):
     """
@@ -232,6 +250,7 @@ def batch_process_v2(
         enforce_naming_convention: Si es True, valida que los nombres de archivo cumplan con el formato
                                  CONDICION_BOTE_REPLICA_TIEMPO_NºIMAGEN
         save_intermediate_images: Si True, guarda las imágenes intermedias (sobreescribe configuración)
+        progress_callback: Función callback para reportar progreso (file_index, filename)
         **configs: Configuraciones para procesamiento
     """
     import os
@@ -260,10 +279,13 @@ def batch_process_v2(
     results = {}
     image_results = []  # Para la agregación de datos
     skipped_files = []
-    
     for i, img_path in enumerate(image_paths):
         base_name = os.path.basename(img_path)
         print(f"\nProcesando imagen {i+1}/{len(image_paths)}: {base_name}")
+        
+        # Call the progress callback if provided
+        if progress_callback:
+            progress_callback(i, img_path)
         
         # Validar formato del nombre de archivo
         if enforce_naming_convention and not DEVELOPMENT_MODE and not validate_filename_format(img_path):
@@ -346,6 +368,7 @@ def batch_process(
     file_pattern: str = "*.jpg",
     enforce_naming_convention: bool = True,  # Nuevo parámetro para controlar la validación
     save_intermediate_images: bool = None,    # Nuevo parámetro para controlar imágenes intermedias
+    progress_callback=None,  # New parameter for progress tracking
     **configs
 ):
     """
@@ -358,6 +381,7 @@ def batch_process(
         enforce_naming_convention: Si es True, valida que los nombres de archivo cumplan con el formato
                                  CONDICION_BOTE_REPLICA_TIEMPO_NºIMAGEN
         save_intermediate_images: Si True, guarda las imágenes intermedias (sobreescribe configuración)
+        progress_callback: Función callback para reportar progreso (file_index, filename)
         **configs: Configuraciones para procesamiento
     """
     # Utilizamos directamente la versión 2 de batch_process
@@ -367,6 +391,7 @@ def batch_process(
         file_pattern=file_pattern,
         enforce_naming_convention=enforce_naming_convention,
         save_intermediate_images=save_intermediate_images,
+        progress_callback=progress_callback,  # Pass through the progress callback
         **configs
     )
 

@@ -129,7 +129,11 @@ class POLIP_Analyzer_GUI:
         notebook.add(info_tab, text="Información")        # Integrar pestañas refactorizadas
         self.analysis_tab = AnalysisTab(main_tab, self.input_dir, self.output_dir, self.file_pattern, self._process_batch, self._view_aggregated_results)
         # Usar los widgets existentes en analysis_tab para crear el progress_tracker
-        self.progress_tracker = ProgressTracker(self.analysis_tab.status_text, self.analysis_tab.progress_bar)
+        self.progress_tracker = ProgressTracker(
+            self.analysis_tab.status_text, 
+            self.analysis_tab.progress_bar,
+            self.analysis_tab.time_estimate_label  # Pass the time estimate label
+        )
         self.methodology_tab = MethodologyTab(methodology_tab)
         self.info_tab = InfoTab(info_tab)
 
@@ -207,8 +211,7 @@ class POLIP_Analyzer_GUI:
             f"Generación de imágenes intermedias: {images_status}",
             append=False
         )
-        
-        # Ejecutar el procesamiento en un hilo separado
+          # Ejecutar el procesamiento en un hilo separado
         processing_thread = threading.Thread(
             target=self._run_batch_processing,
             daemon=True
@@ -217,21 +220,43 @@ class POLIP_Analyzer_GUI:
 
     def _run_batch_processing(self):
         """Ejecuta el procesamiento en un hilo separado"""
-        try:            # Usar la función de procesamiento por lotes
+        try:
+            # Usar la función de procesamiento por lotes
             # Configurar la redirección de la salida para capturar los mensajes de progreso
             import io
             import sys
             from contextlib import redirect_stdout
+            import os
+            import glob
+            
+            # Get total number of files to process
+            input_dir = self.input_dir.get()
+            file_pattern = self.file_pattern.get()
+            image_files = glob.glob(os.path.join(input_dir, file_pattern))
+            total_files = len(image_files)
+            
+            # Initialize progress tracking
+            self.root.after(0, lambda: self.progress_tracker.start_tracking(total_files))
+            
+            # Define a progress callback function for batch_process
+            def progress_callback(file_index, filename):
+                self.root.after(0, lambda: self.progress_tracker.update_progress(
+                    None,  # Will increment by 1 item
+                    f"Procesando imagen {file_index+1}/{total_files}: {os.path.basename(filename)}",
+                    self.root
+                ))
             
             # Capturar la salida estándar
             output_buffer = io.StringIO()
-            with redirect_stdout(output_buffer):                # Ejecutar el procesamiento
+            with redirect_stdout(output_buffer):
+                # Ejecutar el procesamiento
                 result = batch_process(
                     input_dir=self.input_dir.get(),
                     output_dir=self.output_dir.get(),
                     file_pattern=self.file_pattern.get(),
                     enforce_naming_convention=True,  # Siempre validar formato
-                    save_intermediate_images=self.analysis_tab.save_intermediate_images.get()  # Pasar el estado del switch
+                    save_intermediate_images=self.analysis_tab.save_intermediate_images.get(),  # Pasar el estado del switch
+                    progress_callback=progress_callback  # Pass the progress callback
                 )
             
             # Mostrar la salida capturada en el área de resultados
@@ -257,10 +282,11 @@ class POLIP_Analyzer_GUI:
         except Exception as e:
             error_msg = f"Error durante el procesamiento: {e}\n{traceback.format_exc()}"
             self.root.after(0, self._show_error, error_msg)
-        finally:            # Habilitar botones al terminar - FIXME: Need to get button references from analysis_tab
+        finally:
+            # Habilitar botones al terminar - FIXME: Need to get button references from analysis_tab
             # self.root.after(0, lambda: self.process_btn.config(state=tk.NORMAL))
             # self.root.after(0, lambda: self.results_btn.config(state=tk.NORMAL))
-            self.is_running = False    
+            self.is_running = False
     def _update_results(self, output_text, result):
         """Actualizar la interfaz con los resultados del procesamiento"""
         self.update_status(output_text)

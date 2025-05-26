@@ -160,15 +160,18 @@ class AnalysisTab:
         self.status_text.pack(fill=ttk.BOTH, expand=True, padx=5, pady=5)
         self.status_text.insert(ttk.END, "Listo para analizar. Configure las opciones y haga clic en 'Analizar'. \n\nEl análisis puede tardar varios minutos, por favor sea paciente. Déjeme trabajando, usted puede hacer otras cosas mientras.")
         self.status_text.config(state=ttk.DISABLED)
-        
-        # Barra de progreso
+          # Barra de progreso
         progress_frame = ttk.Frame(status_container)
         progress_frame.pack(fill=ttk.X, padx=5, pady=5)
         
         ttk.Label(progress_frame, text="Progreso:").pack(side=ttk.LEFT)
         
+        # Add time estimation label on the right
+        self.time_estimate_label = ttk.Label(progress_frame, text="Tiempo restante: --:--")
+        self.time_estimate_label.pack(side=ttk.RIGHT, padx=(5, 0))
+        
         self.progress_bar = ttk.Progressbar(progress_frame, orient=ttk.HORIZONTAL, length=100, mode='determinate')
-        self.progress_bar.pack(side=ttk.RIGHT, fill=ttk.X, expand=True, padx=(5, 0))
+        self.progress_bar.pack(side=ttk.RIGHT, fill=ttk.X, expand=True, padx=(5, 5))
 
     def browse_input_dir(self):
         directory = filedialog.askdirectory(title="Seleccionar directorio de imágenes")
