@@ -322,7 +322,7 @@ def export_results_to_excel(image_results: List[Tuple[str, Dict[str, Any]]], out
         update_progress(value=0.4, detail="Generando archivo Excel...")
         
         # Exportar a Excel
-        output_filename = "analisis_polifosfatos_resumen.xlsx"
+        output_filename = "resultados_analisis_polifosfatos.xlsx"
         ruta_excel = os.path.join(output_dir, output_filename)
         
         try:
