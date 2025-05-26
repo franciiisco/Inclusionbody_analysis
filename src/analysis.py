@@ -298,19 +298,23 @@ def export_results_to_excel(image_results: List[Tuple[str, Dict[str, Any]]], out
         # Ordenar tabla
         tabla_formateada.sort_values(by=['Medio', 'Replica', 'Tiempo (h)'], inplace=True)
         
-        # Calcular promedios por Medio y Tiempo (sin las columnas eliminadas)
-        update_progress(value=0.3, detail="Calculando promedios generales...")
+        # Calcular sumatorios por Medio y Tiempo
+        update_progress(value=0.3, detail="Calculando sumatorios generales...")
         promedios_generales = tabla_formateada.groupby(['Medio', 'Tiempo (h)']).agg(
-            Promedio_Recuento_Celulas=('Recuento_Celulas', lambda x: x.mean(skipna=True)),
-            Promedio_Recuento_Inclusiones=('Recuento_Inclusiones', lambda x: x.mean(skipna=True)),
-            Promedio_Area_Celulas_px=('Area_Celulas_px', lambda x: x.mean(skipna=True)),
-            Promedio_Area_Inclusiones_px=('Area_Inclusiones_px', lambda x: x.mean(skipna=True)),
-            Promedio_Inclusiones_Celula=('Inclusiones/Celula', lambda x: x.mean(skipna=True)),
-            SD_Inclusiones_Celula=('Inclusiones/Celula', lambda x: x.std(skipna=True)),
-            Promedio_Area_Inclusiones_Celula_perc=('Area_Inclusiones/Celula_perc', lambda x: x.mean(skipna=True)),
-            SD_Area_Inclusiones_Celula_perc=('Area_Inclusiones/Celula_perc', lambda x: x.std(skipna=True)),
-            Numero_Imagenes=('Replica', 'count')
+            SUMATORIO_RECUENTO_CELULAS=('Recuento_Celulas', lambda x: x.sum(skipna=True)),
+            SUMATORIO_RECUENTO_INCLUSIONES=('Recuento_Inclusiones', lambda x: x.sum(skipna=True)),
+            SUMATORIO_AREA_CELULAS=('Area_Celulas_px', lambda x: x.sum(skipna=True)),
+            SUMATORIO_AREA_INCLUSIONES=('Area_Inclusiones_px', lambda x: x.sum(skipna=True)),
+            NUMERO_IMAGENES=('Replica', 'count')
         ).reset_index()
+
+        # Calcular AREA_INCLUSIONES_CELULA_PERC usando los sumatorios
+        # Evitar división por cero
+        promedios_generales['AREA_INCLUSIONES_CELULA_PERC'] = np.where(
+            promedios_generales['SUMATORIO_AREA_CELULAS'] > 0,
+            (promedios_generales['SUMATORIO_AREA_INCLUSIONES'] / promedios_generales['SUMATORIO_AREA_CELULAS']) * 100,
+            0  # O np.nan si prefieres NaN en lugar de 0 cuando el área de células es 0
+        )
         
         # Ordenar promedios
         promedios_generales.sort_values(by=['Medio', 'Tiempo (h)'], inplace=True)
