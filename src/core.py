@@ -55,7 +55,8 @@ def process_image_v2(
     preprocess_config=None,
     segment_config=None,
     detection_config=None,
-    output_dir=None
+    output_dir=None,
+    save_intermediate_images=None
 ):
     """
     Procesa una imagen para detectar células e inclusiones de polifosfatos usando la versión 2.0 
@@ -67,6 +68,7 @@ def process_image_v2(
         segment_config: Configuración para la segmentación
         detection_config: Configuración para la detección de inclusiones v2
         output_dir: Directorio para guardar resultados
+        save_intermediate_images: Si True, guarda las imágenes intermedias (sobreescribe configuración)
     """
     ''' 
     ==========================================
@@ -95,13 +97,16 @@ def process_image_v2(
     ==========================================
     En esta sección se definen los parámetros para la detección de inclusiones de polifosfatos
     usando el método mejorado v2.0 con mejor separación de inclusiones cercanas.
-    '''
-
+    '''    
     if detection_config is None:
         detection_config = DETECTION_V2_CONFIG # Usar configuración v2
     
     if output_dir is None:
         output_dir = "data/processed"
+    
+    # Si se especificó explícitamente, usar ese valor para guardar imágenes intermedias
+    if save_intermediate_images is not None:
+        VISUALIZATION_SETTINGS['save_intermediate_images'] = save_intermediate_images
     
     # Crear directorio de salida si no existe
     os.makedirs(output_dir, exist_ok=True)
@@ -123,11 +128,11 @@ def process_image_v2(
     # Visualizar el preprocesamiento si está habilitado
     if DEVELOPMENT_MODE and VISUALIZATION_SETTINGS.get('show_preprocessing_steps'):
         visualize_preprocessing_steps(original_image, preprocess_config)
-    
-    # Guardar imagen preprocesada
+      # Guardar imagen preprocesada solo si está habilitado en la configuración
     base_filename = os.path.splitext(os.path.basename(image_path))[0]
-    preprocessed_path = os.path.join(output_dir, f"{base_filename}_preprocessed_v2.png")
-    cv2.imwrite(preprocessed_path, preprocessed)
+    if VISUALIZATION_SETTINGS.get('save_intermediate_images'):
+        preprocessed_path = os.path.join(output_dir, f"{base_filename}_preprocessed_v2.png")
+        cv2.imwrite(preprocessed_path, preprocessed)
     
     # Paso 2: Segmentación
     print("Segmentando células...")
@@ -146,11 +151,11 @@ def process_image_v2(
     # Visualizar la segmentación si está habilitado
     if DEVELOPMENT_MODE and VISUALIZATION_SETTINGS.get('show_segmentation_results'):
         visualize_segmentation(original_image, segmented, binary, draw_contours=False)
-    
-    # Guardar imagen segmentada
-    segmented_path = os.path.join(output_dir, f"{base_filename}_segmented_v2.png")
-    segmented_vis = (segmented * 50).astype(np.uint8)  # Escalar para visualización
-    cv2.imwrite(segmented_path, segmented_vis)
+      # Guardar imagen segmentada solo si está habilitado en la configuración
+    if VISUALIZATION_SETTINGS.get('save_intermediate_images'):
+        segmented_path = os.path.join(output_dir, f"{base_filename}_segmented_v2.png")
+        segmented_vis = (segmented * 50).astype(np.uint8)  # Escalar para visualización
+        cv2.imwrite(segmented_path, segmented_vis)
     
     # Paso 3: Detección de inclusiones con el método v2.0
     print("Detectando inclusiones de polifosfatos (método v2.0)...")
@@ -171,8 +176,7 @@ def process_image_v2(
         all_inclusions, 
         show_visualization=(DEVELOPMENT_MODE and VISUALIZATION_SETTINGS.get('show_inclusion_detection'))
     )
-    
-    # Guardar imagen con inclusiones detectadas
+      # Guardar imagen con inclusiones detectadas (siempre se guarda como resultado principal)
     inclusions_path = os.path.join(output_dir, f"{base_filename}_inclusions_v2.png")
     cv2.imwrite(inclusions_path, result_image)
     
@@ -215,6 +219,7 @@ def batch_process_v2(
     output_dir: str = None,
     file_pattern: str = "*.jpg",
     enforce_naming_convention: bool = True,  # Nuevo parámetro para controlar la validación
+    save_intermediate_images: bool = None,   # Nuevo parámetro para imágenes intermedias
     **configs
 ):
     """
@@ -226,6 +231,7 @@ def batch_process_v2(
         file_pattern: Patrón para seleccionar archivos
         enforce_naming_convention: Si es True, valida que los nombres de archivo cumplan con el formato
                                  CONDICION_BOTE_REPLICA_TIEMPO_NºIMAGEN
+        save_intermediate_images: Si True, guarda las imágenes intermedias (sobreescribe configuración)
         **configs: Configuraciones para procesamiento
     """
     import os
@@ -265,11 +271,12 @@ def batch_process_v2(
             print("Omitiendo este archivo...")
             skipped_files.append(base_name)
             continue
-        
+
         try:
             result = process_image_v2(
                 img_path, 
-                output_dir=output_dir, 
+                output_dir=output_dir,
+                save_intermediate_images=save_intermediate_images,
                 **configs
             )
             
@@ -338,6 +345,7 @@ def batch_process(
     output_dir: str = None,
     file_pattern: str = "*.jpg",
     enforce_naming_convention: bool = True,  # Nuevo parámetro para controlar la validación
+    save_intermediate_images: bool = None,    # Nuevo parámetro para controlar imágenes intermedias
     **configs
 ):
     """
@@ -349,6 +357,7 @@ def batch_process(
         file_pattern: Patrón para seleccionar archivos
         enforce_naming_convention: Si es True, valida que los nombres de archivo cumplan con el formato
                                  CONDICION_BOTE_REPLICA_TIEMPO_NºIMAGEN
+        save_intermediate_images: Si True, guarda las imágenes intermedias (sobreescribe configuración)
         **configs: Configuraciones para procesamiento
     """
     # Utilizamos directamente la versión 2 de batch_process
@@ -357,6 +366,7 @@ def batch_process(
         output_dir=output_dir,
         file_pattern=file_pattern,
         enforce_naming_convention=enforce_naming_convention,
+        save_intermediate_images=save_intermediate_images,
         **configs
     )
 

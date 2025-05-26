@@ -47,8 +47,7 @@ def summarize_inclusions(all_inclusions: Dict[int, List[Dict[str, Any]]],
     
     # Ratio de área de inclusiones respecto a células
     inclusion_ratios = []
-    for cell_id, incs in all_inclusions.items():
-        # Calcular área de la célula
+    for cell_id, incs in all_inclusions.items():        # Calcular área de la célula
         cell_mask = (segmented_image == cell_id)
         cell_area = np.sum(cell_mask)
         
@@ -61,6 +60,20 @@ def summarize_inclusions(all_inclusions: Dict[int, List[Dict[str, Any]]],
     avg_inclusion_ratio = np.mean(inclusion_ratios) if inclusion_ratios else 0
     std_inclusion_ratio = np.std(inclusion_ratios) if inclusion_ratios else 0
     
+    # Calcular áreas totales
+    total_cell_area = 0
+    total_inclusion_area = 0
+    
+    for cell_id, incs in all_inclusions.items():
+        # Calcular área de la célula
+        cell_mask = (segmented_image == cell_id)
+        cell_area = np.sum(cell_mask)
+        total_cell_area += cell_area
+        
+        # Calcular área total de inclusiones para esta célula
+        cell_inclusion_area = sum(inc['area'] for inc in incs)
+        total_inclusion_area += cell_inclusion_area
+    
     return {
         'total_cells': total_cells,
         'cells_with_inclusions': cells_with_inclusions,
@@ -72,7 +85,9 @@ def summarize_inclusions(all_inclusions: Dict[int, List[Dict[str, Any]]],
         'avg_inclusion_area': avg_inclusion_area,
         'std_inclusion_area': std_inclusion_area,
         'avg_inclusion_ratio': avg_inclusion_ratio,
-        'std_inclusion_ratio': std_inclusion_ratio
+        'std_inclusion_ratio': std_inclusion_ratio,
+        'total_cell_area': total_cell_area,
+        'total_inclusion_area': total_inclusion_area
     }
 
 
@@ -256,13 +271,12 @@ def export_results_to_excel(image_results: List[Tuple[str, Dict[str, Any]]], out
                 'Replica': metadata['replica'],
                 'Tiempo (h)': metadata['tiempo'].replace('t', '')
             }
-            
-            # Añadir métricas calculadas
+              # Añadir métricas calculadas
             row.update({
                 'Recuento_Celulas': result.get('total_cells', 0),
                 'Recuento_Inclusiones': result.get('total_inclusions', 0),
-                'Area_Celulas_px': 0,  # Se calculará después con datos adicionales
-                'Area_Inclusiones_px': 0,  # Se calculará después con datos adicionales
+                'Area_Celulas_px': result.get('total_cell_area', 0),
+                'Area_Inclusiones_px': result.get('total_inclusion_area', 0),
                 'Inclusiones/Celula': result.get('avg_inclusions_per_cell', 0),
                 'Area_Inclusiones/Celula_perc': result.get('avg_inclusion_ratio', 0) * 100,  # Convertir a porcentaje
                 # Campos adicionales para completar manualmente

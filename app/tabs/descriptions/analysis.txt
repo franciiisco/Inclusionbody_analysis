@@ -2,109 +2,109 @@ Este módulo se encarga del análisis estadístico y la presentación de los res
 
 Detalle de Funciones:
 
-1.  `summarize_inclusions(all_inclusions: Dict[int, List[Dict[str, Any]]], segmented_image: np.ndarray) -> Dict[str, Any]`
-    *   Propósito: Genera un resumen estadístico detallado de las inclusiones detectadas en todas las células de una imagen.
-    *   Parámetros:
-        *   `all_inclusions`: Un diccionario donde las claves son identificadores de células (enteros) y los valores son listas de diccionarios, cada uno representando una inclusión con sus propiedades (ej. 'area').
-        *   `segmented_image`: Una imagen (array NumPy) donde cada célula segmentada tiene un valor de píxel único (su ID). Se usa para calcular el área total de cada célula.
-    *   Algoritmo:
+1.  summarize_inclusions(all_inclusions: Dict[int, List[Dict[str, Any]]], segmented_image: np.ndarray) -> Dict[str, Any]
+    -   Propósito: Genera un resumen estadístico detallado de las inclusiones detectadas en todas las células de una imagen.
+    -   Parámetros:
+        -   all_inclusions: Un diccionario donde las claves son identificadores de células (enteros) y los valores son listas de diccionarios, cada uno representando una inclusión con sus propiedades (ej. 'area').
+        -   segmented_image: Una imagen (array NumPy) donde cada célula segmentada tiene un valor de píxel único (su ID). Se usa para calcular el área total de cada célula.
+    -   Algoritmo:
         1.  Calcula el número total de células, células con inclusiones, células sin inclusiones y el porcentaje de células con inclusiones.
         2.  Calcula el número total de inclusiones.
         3.  Calcula la media y desviación estándar del número de inclusiones por célula.
         4.  Recopila las áreas de todas las inclusiones y calcula la media y desviación estándar del área de las inclusiones.
-        5.  Para cada célula, calcula el área celular a partir de `segmented_image`. Si la célula tiene inclusiones y área > 0, calcula el ratio del área total de inclusiones en esa célula respecto al área de la célula.
+        5.  Para cada célula, calcula el área celular a partir de segmented_image. Si la célula tiene inclusiones y área > 0, calcula el ratio del área total de inclusiones en esa célula respecto al área de la célula.
         6.  Calcula la media y desviación estándar de estos ratios de área.
-    *   Retorno: Un diccionario que contiene diversas estadísticas clave como:
-        -   `total_cells`, `cells_with_inclusions`, `cells_without_inclusions`, `percent_cells_with_inclusions`, `total_inclusions`.
-        -   `avg_inclusions_per_cell`, `std_inclusions_per_cell`.
-        -   `avg_inclusion_area`, `std_inclusion_area`.
-        -   `avg_inclusion_ratio`, `std_inclusion_ratio`.
-    *   Dependencias: `numpy` (para `np.mean`, `np.std`, `np.sum`).
+    -   Retorno: Un diccionario que contiene diversas estadísticas clave como:
+        -   total_cells, cells_with_inclusions, cells_without_inclusions, percent_cells_with_inclusions, total_inclusions.
+        -   avg_inclusions_per_cell, std_inclusions_per_cell.
+        -   avg_inclusion_area, std_inclusion_area.
+        -   avg_inclusion_ratio, std_inclusion_ratio.
+    -   Dependencias: numpy (para np.mean, np.std, np.sum).
 
-2.  `plot_inclusion_statistics(summary: Dict[str, Any], all_inclusions: Dict[int, List[Dict[str, Any]]]) -> None`
-    *   Propósito: Generar visualizaciones (gráficos) a partir del resumen estadístico y los datos de inclusiones.
-    *   Parámetros:
-        *   `summary`: El diccionario de resumen estadístico devuelto por `summarize_inclusions`.
-        *   `all_inclusions`: El diccionario de inclusiones por célula.
-    *   Algoritmo: Importa la función `plot_stats` del módulo `visualization` (ej. `from visualization import plot_inclusion_statistics as plot_stats`) y la llama con los parámetros recibidos.
-    *   Retorno: `None`.
-    *   Dependencias: Módulo `visualization`.
+2.  plot_inclusion_statistics(summary: Dict[str, Any], all_inclusions: Dict[int, List[Dict[str, Any]]]) -> None
+    -   Propósito: Generar visualizaciones (gráficos) a partir del resumen estadístico y los datos de inclusiones.
+    -   Parámetros:
+        -   summary: El diccionario de resumen estadístico devuelto por summarize_inclusions.
+        -   all_inclusions: El diccionario de inclusiones por célula.
+    -   Algoritmo: Importa la función plot_stats del módulo visualization (ej. from visualization import plot_inclusion_statistics as plot_stats) y la llama con los parámetros recibidos.
+    -   Retorno: None.
+    -   Dependencias: Módulo visualization.
 
-3.  `extract_metadata_from_filename(filename: str) -> Dict[str, str]`
-    *   Propósito: Extraer metadatos estructurados a partir de un nombre de archivo que sigue un patrón específico.
-    *   Patrón Esperado: `CONDICION_BOTE_REPLICA_TIEMPO_NºIMAGEN.EXT` (ej. `MEI_B1_R3_t4_026_BF1.png`). El final `_BF1` es opcional y no capturado como grupo principal.
-    *   Parámetros:
-        *   `filename`: El nombre del archivo (puede incluir la ruta).
-    *   Algoritmo:
+3.  extract_metadata_from_filename(filename: str) -> Dict[str, str]
+    -   Propósito: Extraer metadatos estructurados a partir de un nombre de archivo que sigue un patrón específico.
+    -   Patrón Esperado: CONDICION_BOTE_REPLICA_TIEMPO_NºIMAGEN.EXT (ej. MEI_B1_R3_t4_026_BF1.png). El final _BF1 es opcional y no capturado como grupo principal.
+    -   Parámetros:
+        -   filename: El nombre del archivo (puede incluir la ruta).
+    -   Algoritmo:
         1.  Obtiene el nombre base del archivo sin extensión.
-        2.  Utiliza una expresión regular (`r"^([^_]+)_([^_]+)_([^_]+)_([^_]+)_([^_]+)(?:_.*)?$"`) para encontrar y capturar los componentes del nombre.
-    *   Retorno: Un diccionario con los metadatos (`'condicion'`, `'bote'`, `'replica'`, `'tiempo'`, `'numero_imagen'`) si el nombre coincide con el patrón; `None` en caso contrario.
-    *   Dependencias: `os` (para `basename`, `splitext`), `re` (para `match`).
+        2.  Utiliza una expresión regular (r"^([^_]+)_([^_]+)_([^_]+)_([^_]+)_([^_]+)(?:_.-)?$") para encontrar y capturar los componentes del nombre.
+    -   Retorno: Un diccionario con los metadatos ('condicion', 'bote', 'replica', 'tiempo', 'numero_imagen') si el nombre coincide con el patrón; None en caso contrario.
+    -   Dependencias: os (para basename, splitext), re (para match).
 
-4.  `validate_filename_format(filename: str) -> bool`
-    *   Propósito: Validar si un nombre de archivo cumple con el formato requerido para la extracción de metadatos.
-    *   Parámetros:
-        *   `filename`: El nombre del archivo a validar.
-    *   Algoritmo: Llama a `extract_metadata_from_filename` y comprueba si el resultado es diferente de `None`.
-    *   Retorno: `True` si el formato es válido, `False` en caso contrario.
+4.  validate_filename_format(filename: str) -> bool
+    -   Propósito: Validar si un nombre de archivo cumple con el formato requerido para la extracción de metadatos.
+    -   Parámetros:
+        -   filename: El nombre del archivo a validar.
+    -   Algoritmo: Llama a extract_metadata_from_filename y comprueba si el resultado es diferente de None.
+    -   Retorno: True si el formato es válido, False en caso contrario.
 
-5.  `aggregate_inclusion_data(image_results: List[Tuple[str, Dict[str, Any]]]) -> Dict[str, Dict[str, Any]]`
-    *   Propósito: Agregar los resultados del análisis de múltiples imágenes, agrupándolos por combinaciones de condición, tiempo y réplica.
-    *   Parámetros:
-        *   `image_results`: Una lista de tuplas, donde cada tupla contiene `(nombre_archivo, resultados_analisis)`. `resultados_analisis` es el diccionario devuelto por `summarize_inclusions`.
-    *   Algoritmo:
-        1.  Inicializa diccionarios (usando `defaultdict(list)`) para agrupar resultados por `CONDICION/TIEMPO/REPLICA` y `CONDICION/TIEMPO`.
-        2.  Itera sobre `image_results`. Para cada imagen:
-            a.  Extrae metadatos del nombre de archivo usando `extract_metadata_from_filename`.
+5.  aggregate_inclusion_data(image_results: List[Tuple[str, Dict[str, Any]]]) -> Dict[str, Dict[str, Any]]
+    -   Propósito: Agregar los resultados del análisis de múltiples imágenes, agrupándolos por combinaciones de condición, tiempo y réplica.
+    -   Parámetros:
+        -   image_results: Una lista de tuplas, donde cada tupla contiene (nombre_archivo, resultados_analisis). resultados_analisis es el diccionario devuelto por summarize_inclusions.
+    -   Algoritmo:
+        1.  Inicializa diccionarios (usando defaultdict(list)) para agrupar resultados por CONDICION/TIEMPO/REPLICA y CONDICION/TIEMPO.
+        2.  Itera sobre image_results. Para cada imagen:
+            a.  Extrae metadatos del nombre de archivo usando extract_metadata_from_filename.
             b.  Si el formato del nombre no es válido, imprime una advertencia y omite la imagen.
-            c.  Construye claves de agrupación y añade el `resultados_analisis` a las listas correspondientes.
-        3.  Llama a `_calculate_aggregate_statistics` para cada grupo formado para calcular estadísticas agregadas (media, std) de las métricas.
-    *   Retorno: Un diccionario con dos claves principales:
-        -   `'condition_time_replicate'`: Contiene estadísticas agregadas para cada combinación única de condición, tiempo y réplica.
-        -   `'condition_time'`: Contiene estadísticas agregadas para cada combinación única de condición y tiempo (promediando sobre réplicas).
-    *   Dependencias: `extract_metadata_from_filename`, `_calculate_aggregate_statistics`, `collections.defaultdict`.
+            c.  Construye claves de agrupación y añade el resultados_analisis a las listas correspondientes.
+        3.  Llama a _calculate_aggregate_statistics para cada grupo formado para calcular estadísticas agregadas (media, std) de las métricas.
+    -   Retorno: Un diccionario con dos claves principales:
+        -   'condition_time_replicate': Contiene estadísticas agregadas para cada combinación única de condición, tiempo y réplica.
+        -   'condition_time': Contiene estadísticas agregadas para cada combinación única de condición y tiempo (promediando sobre réplicas).
+    -   Dependencias: extract_metadata_from_filename, _calculate_aggregate_statistics, collections.defaultdict.
 
-6.  `_calculate_aggregate_statistics(results: List[Dict[str, Any]]) -> Dict[str, Any]`
-    *   Propósito: Función auxiliar para calcular estadísticas agregadas (media y desviación estándar) para un conjunto de resultados de análisis.
-    *   Parámetros:
-        *   `results`: Una lista de diccionarios, donde cada diccionario es un conjunto de resultados de análisis (como los devueltos por `summarize_inclusions`).
-    *   Algoritmo:
-        1.  Define una lista de métricas de interés: `'avg_inclusions_per_cell'`, `'avg_inclusion_area'`, `'avg_inclusion_ratio'`, `'percent_cells_with_inclusions'`.
-        2.  Para cada métrica, extrae los valores de todos los diccionarios en `results`, y calcula la media y la desviación estándar.
-        3.  Almacena estas estadísticas agregadas (ej. `mean_avg_inclusions_per_cell`, `std_avg_inclusions_per_cell`).
-        4.  Añade el número total de imágenes (`total_images`) que contribuyeron a esta agregación.
-    *   Retorno: Un diccionario con las estadísticas agregadas.
-    *   Dependencias: `numpy` (para `np.mean`, `np.std`).
+6.  _calculate_aggregate_statistics(results: List[Dict[str, Any]]) -> Dict[str, Any]
+    -   Propósito: Función auxiliar para calcular estadísticas agregadas (media y desviación estándar) para un conjunto de resultados de análisis.
+    -   Parámetros:
+        -   results: Una lista de diccionarios, donde cada diccionario es un conjunto de resultados de análisis (como los devueltos por summarize_inclusions).
+    -   Algoritmo:
+        1.  Define una lista de métricas de interés: 'avg_inclusions_per_cell', 'avg_inclusion_area', 'avg_inclusion_ratio', 'percent_cells_with_inclusions'.
+        2.  Para cada métrica, extrae los valores de todos los diccionarios en results, y calcula la media y la desviación estándar.
+        3.  Almacena estas estadísticas agregadas (ej. mean_avg_inclusions_per_cell, std_avg_inclusions_per_cell).
+        4.  Añade el número total de imágenes (total_images) que contribuyeron a esta agregación.
+    -   Retorno: Un diccionario con las estadísticas agregadas.
+    -   Dependencias: numpy (para np.mean, np.std).
 
-7.  `export_results_to_excel(image_results: List[Tuple[str, Dict[str, Any]]], output_dir: str, progress_reporter=None) -> str`
-    *   Propósito: Exportar los resultados del análisis de imágenes individuales y los promedios generales a un archivo Excel con múltiples hojas.
-    *   Parámetros:
-        *   `image_results`: Lista de tuplas `(nombre_archivo, resultados_analisis)`.
-        *   `output_dir`: Directorio donde se guardará el archivo Excel.
-        *   `progress_reporter`: Función opcional para reportar el progreso (útil para interfaces gráficas).
-    *   Algoritmo:
-        1.  Transforma `image_results` en una lista de diccionarios planos, extrayendo metadatos y resultados relevantes para cada imagen.
-        2.  Crea un DataFrame de pandas (`df`) con estos datos. Las columnas incluyen metadatos ('Medio', 'Replica', 'Tiempo (h)') y métricas ('Recuento_Celulas', 'Inclusiones/Celula', etc.).
-        3.  Incluye columnas placeholder (`'UFC/mL'`, `'Log (UFC/mL)'`, `'DO600'`) con `np.nan`.
-        4.  Las columnas `'Area_Celulas_px'` y `'Area_Inclusiones_px'` se inicializan a 0 con un comentario indicando que se calcularán después, pero esta lógica no está implementada en la función.
+7.  export_results_to_excel(image_results: List[Tuple[str, Dict[str, Any]]], output_dir: str, progress_reporter=None) -> str
+    -   Propósito: Exportar los resultados del análisis de imágenes individuales y los promedios generales a un archivo Excel con múltiples hojas.
+    -   Parámetros:
+        -   image_results: Lista de tuplas (nombre_archivo, resultados_analisis).
+        -   output_dir: Directorio donde se guardará el archivo Excel.
+        -   progress_reporter: Función opcional para reportar el progreso (útil para interfaces gráficas).
+    -   Algoritmo:
+        1.  Transforma image_results en una lista de diccionarios planos, extrayendo metadatos y resultados relevantes para cada imagen.
+        2.  Crea un DataFrame de pandas (df) con estos datos. Las columnas incluyen metadatos ('Medio', 'Replica', 'Tiempo (h)') y métricas ('Recuento_Celulas', 'Inclusiones/Celula', etc.).
+        3.  Incluye columnas placeholder ('UFC/mL', 'Log (UFC/mL)', 'DO600') con np.nan.
+        4.  Las columnas 'Area_Celulas_px' y 'Area_Inclusiones_px' se inicializan a 0 con un comentario indicando que se calcularán después, pero esta lógica no está implementada en la función.
         5.  Convierte la columna 'Tiempo (h)' a tipo numérico.
-        6.  Crea una copia del DataFrame (`tabla_formateada`) y la ordena.
-        7.  Calcula promedios generales (`promedios_generales`) agrupando `tabla_formateada` por 'Medio' y 'Tiempo (h)', calculando medias y desviaciones estándar de las métricas relevantes.
-        8.  Define el nombre del archivo Excel (`analisis_polifosfatos_resumen.xlsx`).
-        9.  Utiliza `pd.ExcelWriter` para crear el archivo Excel:
-            *   **Lógica Incompleta:** Intenta iterar sobre grupos de `['Medio', 'Replica']` para escribir hojas por réplica, pero el cuerpo del bucle `for name, group in tabla_formateada.groupby(['Medio', 'Replica']):` está vacío.
-            *   Escribe la tabla `promedios_generales` en una hoja llamada "Promedios_Generales".
+        6.  Crea una copia del DataFrame (tabla_formateada) y la ordena.
+        7.  Calcula promedios generales (promedios_generales) agrupando tabla_formateada por 'Medio' y 'Tiempo (h)', calculando medias y desviaciones estándar de las métricas relevantes.
+        8.  Define el nombre del archivo Excel (analisis_polifosfatos_resumen.xlsx).
+        9.  Utiliza pd.ExcelWriter para crear el archivo Excel:
+            -   Lógica Incompleta: Intenta iterar sobre grupos de ['Medio', 'Replica'] para escribir hojas por réplica, pero el cuerpo del bucle for name, group in tabla_formateada.groupby(['Medio', 'Replica']): está vacío.
+            -   Escribe la tabla promedios_generales en una hoja llamada "Promedios_Generales".
         10. Incluye manejo de errores para el guardado del archivo, intentando un nombre alternativo con timestamp si el original falla (ej. si está abierto).
-    *   Retorno: Una cadena de texto indicando la ruta al archivo Excel guardado.
-    *   Dependencias: `pandas` (para `DataFrame`, `ExcelWriter`, `to_numeric`), `os` (para `path.join`), `datetime` (para `now().strftime`), `numpy` (para `np.nan`).
+    -   Retorno: Una cadena de texto indicando la ruta al archivo Excel guardado.
+    -   Dependencias: pandas (para DataFrame, ExcelWriter, to_numeric), os (para path.join), datetime (para now().strftime), numpy (para np.nan).
 
 Consideraciones Adicionales y Puntos de Mejora:
 
-*   **Importaciones Faltantes:** Las bibliotecas `numpy`, `pandas`, `os`, y `re` se utilizan extensivamente pero no se importan explícitamente al inicio del módulo (`import numpy as np`, `import pandas as pd`, etc.). Esto puede llevar a errores si el módulo se ejecuta en un contexto donde estas bibliotecas no han sido importadas previamente.
-*   **Exportación a Excel Incompleta (`export_results_to_excel`):
-    *   La funcionalidad para crear hojas de Excel separadas por cada réplica (`for name, group in tabla_formateada.groupby(['Medio', 'Replica']):`) está iniciada pero no implementada (el bucle está vacío). Solo se guarda la hoja de "Promedios_Generales".
-    *   Las columnas `'Area_Celulas_px'` y `'Area_Inclusiones_px'` se inicializan a 0 y se menciona que "Se calculará después con datos adicionales". Sin embargo, la lógica para este cálculo no está presente en la función. Para calcularlas, se necesitaría acceso a datos más detallados de las áreas celulares (posiblemente desde `segmented_image` o sumas de áreas de `all_inclusions` que no se pasan directamente a esta función en el formato actual).
-*   **Dependencia del Módulo `visualization`:** La función `plot_inclusion_statistics` depende de un módulo `visualization` y una función `plot_stats` dentro de él. La funcionalidad exacta de la visualización dependerá de la implementación de dicho módulo.
-*   **Robustez:** Aunque `export_results_to_excel` tiene un manejo básico de errores de guardado, otras funciones podrían beneficiarse de validaciones de entrada más extensivas o manejo de excepciones si los datos de entrada no son los esperados.
-*   **Claridad del Regex:** El patrón regex en `extract_metadata_from_filename` (`(?:_.*)?$`) permite sufijos opcionales no capturados después del número de imagen (ej. `_BF1`, `_PhaseContrast`). Esto es flexible pero podría ser documentado más explícitamente en los comentarios de la función.
-*   **Uso de `progress_reporter`:** La inclusión de un `progress_reporter` en `export_results_to_excel` es una buena práctica para la integración con interfaces de usuario, permitiendo informar sobre el progreso de tareas largas.
+-   Importaciones Faltantes: Las bibliotecas numpy, pandas, os, y re se utilizan extensivamente pero no se importan explícitamente al inicio del módulo (import numpy as np, import pandas as pd, etc.). Esto puede llevar a errores si el módulo se ejecuta en un contexto donde estas bibliotecas no han sido importadas previamente.
+-   Exportación a Excel Incompleta (export_results_to_excel):
+    -   La funcionalidad para crear hojas de Excel separadas por cada réplica (for name, group in tabla_formateada.groupby(['Medio', 'Replica']):) está iniciada pero no implementada (el bucle está vacío). Solo se guarda la hoja de "Promedios_Generales".
+    -   Las columnas 'Area_Celulas_px' y 'Area_Inclusiones_px' se inicializan a 0 y se menciona que "Se calculará después con datos adicionales". Sin embargo, la lógica para este cálculo no está presente en la función. Para calcularlas, se necesitaría acceso a datos más detallados de las áreas celulares (posiblemente desde segmented_image o sumas de áreas de all_inclusions que no se pasan directamente a esta función en el formato actual).
+-   Dependencia del Módulo visualization: La función plot_inclusion_statistics depende de un módulo visualization y una función plot_stats dentro de él. La funcionalidad exacta de la visualización dependerá de la implementación de dicho módulo.
+-   Robustez: Aunque export_results_to_excel tiene un manejo básico de errores de guardado, otras funciones podrían beneficiarse de validaciones de entrada más extensivas o manejo de excepciones si los datos de entrada no son los esperados.
+-   Claridad del Regex: El patrón regex en extract_metadata_from_filename ((?:_.-)?$) permite sufijos opcionales no capturados después del número de imagen (ej. _BF1, _PhaseContrast). Esto es flexible pero podría ser documentado más explícitamente en los comentarios de la función.
+-   Uso de progress_reporter: La inclusión de un progress_reporter en export_results_to_excel es una buena práctica para la integración con interfaces de usuario, permitiendo informar sobre el progreso de tareas largas.

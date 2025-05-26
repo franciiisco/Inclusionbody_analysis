@@ -1,105 +1,105 @@
-El script `preprocessing.py` está diseñado para el preprocesamiento de imágenes de microscopía, especialmente aquellas que contienen células bacterianas e inclusiones de polifosfatos. Utiliza principalmente las bibliotecas OpenCV (`cv2`) y NumPy (`np`) para realizar diversas operaciones de manipulación de imágenes.
+El script preprocessing.py está diseñado para el preprocesamiento de imágenes de microscopía, especialmente aquellas que contienen células bacterianas e inclusiones de polifosfatos. Utiliza principalmente las bibliotecas OpenCV (cv2) y NumPy (np) para realizar diversas operaciones de manipulación de imágenes.
 
 El módulo define las siguientes funciones principales:
 
-1.  **`normalize_image(image, method='minmax', clip_limit=2.0, tile_grid_size=(8, 8))`**
-    *   **Propósito**: Normalizar el contraste y el brillo de una imagen.
-    *   **Parámetros**:
-        *   `image`: Imagen de entrada (NumPy array).
-        *   `method`: Método de normalización. Puede ser:
-            *   `'minmax'`:
-                *   **Descripción del Algoritmo**: Este método reescala linealmente los valores de intensidad de los píxeles de la imagen para que ocupen el rango completo de valores posibles (generalmente 0 a 255 para imágenes de 8 bits). Encuentra el valor mínimo y máximo de intensidad en la imagen original. Luego, cada píxel `P` se transforma a `P' = 255 * (P - min) / (max - min)`. Esto asegura que el píxel más oscuro se vuelva negro (0) y el más brillante se vuelva blanco (255), mejorando el contraste global. Utiliza `cv2.normalize` con `cv2.NORM_MINMAX`.
-            *   `'clahe'`:
-                *   **Descripción del Algoritmo**: CLAHE (Contrast Limited Adaptive Histogram Equalization) es una mejora sobre la ecualización de histograma adaptativa (AHE). AHE calcula varios histogramas, cada uno correspondiente a una sección distinta de la imagen (llamadas "tiles" o "teselas"), y los usa para redistribuir los valores de luminosidad de la imagen. CLAHE se diferencia en que limita la amplificación del contraste para evitar la sobreamplificación del ruido que puede ocurrir con AHE. Lo hace "recortando" el histograma a un valor predefinido (`clip_limit`) antes de calcular la función de transformación acumulativa. Esto hace que el contraste local mejore sin amplificar excesivamente el ruido. Utiliza `cv2.createCLAHE().apply()`. Los parámetros `clip_limit` y `tile_grid_size` (número de teselas en filas y columnas) controlan su comportamiento.
-            *   `'histogram'`:
-                *   **Descripción del Algoritmo**: La ecualización de histograma tradicional es una técnica que intenta redistribuir las intensidades de los píxeles de una imagen para que el histograma resultante sea lo más plano posible. Esto se logra calculando el histograma acumulativo de la imagen y usándolo como una función de mapeo para transformar los valores de intensidad originales a nuevos valores. El objetivo es extender los rangos de intensidad más frecuentes y comprimir los menos frecuentes, lo que generalmente resulta en un mayor contraste global. Utiliza `cv2.equalizeHist()`.
-    *   **Proceso**:
+1.  normalize_image(image, method='minmax', clip_limit=2.0, tile_grid_size=(8, 8))
+    -   Propósito: Normalizar el contraste y el brillo de una imagen.
+    -   Parámetros:
+        -   image: Imagen de entrada (NumPy array).
+        -   method: Método de normalización. Puede ser:
+            -   'minmax':
+                -   Descripción del Algoritmo: Este método reescala linealmente los valores de intensidad de los píxeles de la imagen para que ocupen el rango completo de valores posibles (generalmente 0 a 255 para imágenes de 8 bits). Encuentra el valor mínimo y máximo de intensidad en la imagen original. Luego, cada píxel P se transforma a P' = 255 - (P - min) / (max - min). Esto asegura que el píxel más oscuro se vuelva negro (0) y el más brillante se vuelva blanco (255), mejorando el contraste global. Utiliza cv2.normalize con cv2.NORM_MINMAX.
+            -   'clahe':
+                -   Descripción del Algoritmo: CLAHE (Contrast Limited Adaptive Histogram Equalization) es una mejora sobre la ecualización de histograma adaptativa (AHE). AHE calcula varios histogramas, cada uno correspondiente a una sección distinta de la imagen (llamadas "tiles" o "teselas"), y los usa para redistribuir los valores de luminosidad de la imagen. CLAHE se diferencia en que limita la amplificación del contraste para evitar la sobreamplificación del ruido que puede ocurrir con AHE. Lo hace "recortando" el histograma a un valor predefinido (clip_limit) antes de calcular la función de transformación acumulativa. Esto hace que el contraste local mejore sin amplificar excesivamente el ruido. Utiliza cv2.createCLAHE().apply(). Los parámetros clip_limit y tile_grid_size (número de teselas en filas y columnas) controlan su comportamiento.
+            -   'histogram':
+                -   Descripción del Algoritmo: La ecualización de histograma tradicional es una técnica que intenta redistribuir las intensidades de los píxeles de una imagen para que el histograma resultante sea lo más plano posible. Esto se logra calculando el histograma acumulativo de la imagen y usándolo como una función de mapeo para transformar los valores de intensidad originales a nuevos valores. El objetivo es extender los rangos de intensidad más frecuentes y comprimir los menos frecuentes, lo que generalmente resulta en un mayor contraste global. Utiliza cv2.equalizeHist().
+    -   Proceso:
         1.  Verifica que la imagen de entrada sea un array de NumPy.
-        2.  Si la imagen tiene 3 canales (asumida como BGR), la convierte a escala de grises usando `cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)`.
-        3.  Asegura que el tipo de datos de la imagen sea `np.uint8`.
+        2.  Si la imagen tiene 3 canales (asumida como BGR), la convierte a escala de grises usando cv2.cvtColor(image, cv2.COLOR_BGR2GRAY).
+        3.  Asegura que el tipo de datos de la imagen sea np.uint8.
         4.  Aplica el método de normalización seleccionado.
-    *   **Salida**: Imagen normalizada (NumPy array).
+    -   Salida: Imagen normalizada (NumPy array).
 
-2.  **`denoise_image(image, method='gaussian', params=None)`**
-    *   **Propósito**: Reducir el ruido en la imagen preservando detalles importantes.
-    *   **Parámetros**:
-        *   `image`: Imagen de entrada (NumPy array).
-        *   `method`: Método de filtrado. Puede ser:
-            *   `'gaussian'`:
-                *   **Descripción del Algoritmo**: El filtro Gaussiano es un filtro lineal que suaviza la imagen convolucionando la imagen con un kernel Gaussiano. El kernel se define por su tamaño (`ksize`) y la desviación estándar (`sigma`). Los valores del kernel son mayores en el centro y disminuyen con la distancia, siguiendo una distribución Gaussiana. Esto significa que los píxeles más cercanos al centro del kernel tienen más influencia en el resultado. Es efectivo para reducir el ruido Gaussiano y produce un suavizado general. Utiliza `cv2.GaussianBlur`.
-            *   `'median'`:
-                *   **Descripción del Algoritmo**: El filtro de mediana es un filtro no lineal que reemplaza el valor de cada píxel por la mediana de los valores de los píxeles en su vecindad (definida por `ksize`). Es particularmente efectivo para eliminar el ruido de tipo "sal y pimienta" (píxeles blancos y negros aleatorios) mientras preserva mejor los bordes que los filtros lineales como el Gaussiano. Utiliza `cv2.medianBlur`.
-            *   `'bilateral'`:
-                *   **Descripción del Algoritmo**: El filtro bilateral es un filtro no lineal que suaviza la imagen preservando los bordes. Lo hace considerando no solo la proximidad espacial de los píxeles (como el filtro Gaussiano) sino también la similitud en sus intensidades. Para cada píxel, calcula un promedio ponderado de los píxeles vecinos, donde las ponderaciones dependen tanto de la distancia espacial (controlada por `sigma_space` y el diámetro `d`) como de la diferencia de intensidad (controlada por `sigma_color`). Esto significa que solo los píxeles que son espacialmente cercanos y tienen intensidades similares contribuyen significativamente al valor del píxel filtrado, lo que ayuda a suavizar las regiones homogéneas mientras se mantienen nítidos los bordes. Utiliza `cv2.bilateralFilter`.
-        *   `params`: Diccionario opcional con parámetros específicos para el método seleccionado. Si no se proporcionan, se usan valores por defecto. (Nota: la actualización de parámetros por defecto en el script original parece incompleta).
-    *   **Salida**: Imagen filtrada (NumPy array).
+2.  denoise_image(image, method='gaussian', params=None)
+    -   Propósito: Reducir el ruido en la imagen preservando detalles importantes.
+    -   Parámetros:
+        -   image: Imagen de entrada (NumPy array).
+        -   method: Método de filtrado. Puede ser:
+            -   'gaussian':
+                -   Descripción del Algoritmo: El filtro Gaussiano es un filtro lineal que suaviza la imagen convolucionando la imagen con un kernel Gaussiano. El kernel se define por su tamaño (ksize) y la desviación estándar (sigma). Los valores del kernel son mayores en el centro y disminuyen con la distancia, siguiendo una distribución Gaussiana. Esto significa que los píxeles más cercanos al centro del kernel tienen más influencia en el resultado. Es efectivo para reducir el ruido Gaussiano y produce un suavizado general. Utiliza cv2.GaussianBlur.
+            -   'median':
+                -   Descripción del Algoritmo: El filtro de mediana es un filtro no lineal que reemplaza el valor de cada píxel por la mediana de los valores de los píxeles en su vecindad (definida por ksize). Es particularmente efectivo para eliminar el ruido de tipo "sal y pimienta" (píxeles blancos y negros aleatorios) mientras preserva mejor los bordes que los filtros lineales como el Gaussiano. Utiliza cv2.medianBlur.
+            -   'bilateral':
+                -   Descripción del Algoritmo: El filtro bilateral es un filtro no lineal que suaviza la imagen preservando los bordes. Lo hace considerando no solo la proximidad espacial de los píxeles (como el filtro Gaussiano) sino también la similitud en sus intensidades. Para cada píxel, calcula un promedio ponderado de los píxeles vecinos, donde las ponderaciones dependen tanto de la distancia espacial (controlada por sigma_space y el diámetro d) como de la diferencia de intensidad (controlada por sigma_color). Esto significa que solo los píxeles que son espacialmente cercanos y tienen intensidades similares contribuyen significativamente al valor del píxel filtrado, lo que ayuda a suavizar las regiones homogéneas mientras se mantienen nítidos los bordes. Utiliza cv2.bilateralFilter.
+        -   params: Diccionario opcional con parámetros específicos para el método seleccionado. Si no se proporcionan, se usan valores por defecto. (Nota: la actualización de parámetros por defecto en el script original parece incompleta).
+    -   Salida: Imagen filtrada (NumPy array).
 
-3.  **`correct_illumination(image, method='subtract_background', params=None)`**
-    *   **Propósito**: Corregir problemas de iluminación no uniforme.
-    *   **Parámetros**:
-        *   `image`: Imagen de entrada (NumPy array).
-        *   `method`: Método de corrección. Puede ser:
-            *   `'subtract_background'`:
-                *   **Descripción del Algoritmo**: Este método asume que la iluminación no uniforme puede modelarse como un fondo de baja frecuencia que se superpone a la imagen. Primero, estima este fondo aplicando un filtro de mediana con un tamaño de kernel grande (`kernel_size`). Un kernel grande asegura que solo las variaciones de baja frecuencia (como la iluminación desigual) sean capturadas, mientras que los detalles de alta frecuencia (como las células) se eliminan. Luego, este fondo estimado se resta de la imagen original (`cv2.subtract`). Finalmente, el resultado se normaliza para asegurar que los valores de intensidad estén en el rango visible (0-255).
-            *   `'morphological'`:
-                *   **Descripción del Algoritmo**: Este método utiliza operaciones morfológicas para estimar y corregir la iluminación. Específicamente, aplica una operación de cierre morfológico (`cv2.MORPH_CLOSE`) con un elemento estructurante grande (elíptico en este caso, con `kernel_size`). La operación de cierre (dilatación seguida de erosión) tiende a rellenar pequeños agujeros oscuros y conectar objetos cercanos, lo que, con un kernel grande, puede generar una buena estimación del fondo o de las variaciones de iluminación. Luego, la imagen original se divide por esta estimación del fondo (`cv2.divide`) y se escala para llevar los valores al rango deseado. Este enfoque puede ser efectivo para corregir fondos brillantes y no uniformes.
-            *   `'homomorphic'`:
-                *   **Descripción del Algoritmo**: El filtrado homomórfico es una técnica que opera en el dominio de la frecuencia para corregir la iluminación no uniforme y mejorar el contraste simultáneamente. Se basa en el modelo de que una imagen `I(x,y)` puede representarse como el producto de la componente de iluminación `L(x,y)` (varía lentamente, baja frecuencia) y la componente de reflectancia `R(x,y)` (varía rápidamente, alta frecuencia, representa los detalles del objeto).
-                    1.  **Transformación Logarítmica**: Se aplica el logaritmo a la imagen (`I' = log(I) = log(L) + log(R)`), convirtiendo la relación multiplicativa en aditiva.
-                    2.  **Transformada de Fourier**: Se lleva la imagen al dominio de la frecuencia usando FFT.
-                    3.  **Filtro en Frecuencia**: Se diseña un filtro (generalmente un filtro pasa-altas, como un Gaussiano inverso) que atenúa las componentes de baja frecuencia (iluminación) y amplifica o deja pasar las componentes de alta frecuencia (reflectancia). Los parámetros `gauss_size` (o similar para otros filtros), `gamma1` (controla la atenuación de bajas frecuencias) y `gamma2` (controla la amplificación de altas frecuencias) definen la forma del filtro.
-                    4.  **Aplicación del Filtro**: El filtro se multiplica por el espectro de la imagen en el dominio de la frecuencia.
-                    5.  **Transformada Inversa de Fourier**: Se devuelve la imagen al dominio espacial usando IFFT.
-                    6.  **Transformación Exponencial Inversa**: Se aplica la función exponencial (`exp(I'')`) para revertir la transformación logarítmica inicial.
-                    7.  **Normalización**: El resultado se normaliza al rango de 0-255.
-        *   `params`: Diccionario opcional con parámetros específicos. (Nota: la actualización de parámetros por defecto en el script original parece incompleta).
-    *   **Salida**: Imagen con iluminación corregida (NumPy array).
+3.  correct_illumination(image, method='subtract_background', params=None)
+    -   Propósito: Corregir problemas de iluminación no uniforme.
+    -   Parámetros:
+        -   image: Imagen de entrada (NumPy array).
+        -   method: Método de corrección. Puede ser:
+            -   'subtract_background':
+                -   Descripción del Algoritmo: Este método asume que la iluminación no uniforme puede modelarse como un fondo de baja frecuencia que se superpone a la imagen. Primero, estima este fondo aplicando un filtro de mediana con un tamaño de kernel grande (kernel_size). Un kernel grande asegura que solo las variaciones de baja frecuencia (como la iluminación desigual) sean capturadas, mientras que los detalles de alta frecuencia (como las células) se eliminan. Luego, este fondo estimado se resta de la imagen original (cv2.subtract). Finalmente, el resultado se normaliza para asegurar que los valores de intensidad estén en el rango visible (0-255).
+            -   'morphological':
+                -   Descripción del Algoritmo: Este método utiliza operaciones morfológicas para estimar y corregir la iluminación. Específicamente, aplica una operación de cierre morfológico (cv2.MORPH_CLOSE) con un elemento estructurante grande (elíptico en este caso, con kernel_size). La operación de cierre (dilatación seguida de erosión) tiende a rellenar pequeños agujeros oscuros y conectar objetos cercanos, lo que, con un kernel grande, puede generar una buena estimación del fondo o de las variaciones de iluminación. Luego, la imagen original se divide por esta estimación del fondo (cv2.divide) y se escala para llevar los valores al rango deseado. Este enfoque puede ser efectivo para corregir fondos brillantes y no uniformes.
+            -   'homomorphic':
+                -   Descripción del Algoritmo: El filtrado homomórfico es una técnica que opera en el dominio de la frecuencia para corregir la iluminación no uniforme y mejorar el contraste simultáneamente. Se basa en el modelo de que una imagen I(x,y) puede representarse como el producto de la componente de iluminación L(x,y) (varía lentamente, baja frecuencia) y la componente de reflectancia R(x,y) (varía rápidamente, alta frecuencia, representa los detalles del objeto).
+                    1.  Transformación Logarítmica: Se aplica el logaritmo a la imagen (I' = log(I) = log(L) + log(R)), convirtiendo la relación multiplicativa en aditiva.
+                    2.  Transformada de Fourier: Se lleva la imagen al dominio de la frecuencia usando FFT.
+                    3.  Filtro en Frecuencia: Se diseña un filtro (generalmente un filtro pasa-altas, como un Gaussiano inverso) que atenúa las componentes de baja frecuencia (iluminación) y amplifica o deja pasar las componentes de alta frecuencia (reflectancia). Los parámetros gauss_size (o similar para otros filtros), gamma1 (controla la atenuación de bajas frecuencias) y gamma2 (controla la amplificación de altas frecuencias) definen la forma del filtro.
+                    4.  Aplicación del Filtro: El filtro se multiplica por el espectro de la imagen en el dominio de la frecuencia.
+                    5.  Transformada Inversa de Fourier: Se devuelve la imagen al dominio espacial usando IFFT.
+                    6.  Transformación Exponencial Inversa: Se aplica la función exponencial (exp(I'')) para revertir la transformación logarítmica inicial.
+                    7.  Normalización: El resultado se normaliza al rango de 0-255.
+        -   params: Diccionario opcional con parámetros específicos. (Nota: la actualización de parámetros por defecto en el script original parece incompleta).
+    -   Salida: Imagen con iluminación corregida (NumPy array).
 
-4.  **`invert_image(image)`**
-    *   **Propósito**: Invertir los valores de intensidad de una imagen (oscuro a brillante y viceversa).
-    *   **Descripción del Algoritmo**: Esta operación toma cada valor de píxel `P` en una imagen (generalmente en el rango de 0 a 255 para imágenes de 8 bits) y lo reemplaza con `255 - P`. Así, los píxeles negros (valor 0) se vuelven blancos (valor 255), los blancos se vuelven negros, y los tonos intermedios se invierten correspondientemente. Es útil cuando los objetos de interés son oscuros sobre un fondo claro, o viceversa, y el algoritmo posterior espera una polaridad específica. Utiliza `cv2.bitwise_not(image)`, que realiza una operación NOT bit a bit. Para imágenes de 8 bits, esto es equivalente a `255 - P`.
-    *   **Salida**: Imagen invertida (NumPy array).
+4.  invert_image(image)
+    -   Propósito: Invertir los valores de intensidad de una imagen (oscuro a brillante y viceversa).
+    -   Descripción del Algoritmo: Esta operación toma cada valor de píxel P en una imagen (generalmente en el rango de 0 a 255 para imágenes de 8 bits) y lo reemplaza con 255 - P. Así, los píxeles negros (valor 0) se vuelven blancos (valor 255), los blancos se vuelven negros, y los tonos intermedios se invierten correspondientemente. Es útil cuando los objetos de interés son oscuros sobre un fondo claro, o viceversa, y el algoritmo posterior espera una polaridad específica. Utiliza cv2.bitwise_not(image), que realiza una operación NOT bit a bit. Para imágenes de 8 bits, esto es equivalente a 255 - P.
+    -   Salida: Imagen invertida (NumPy array).
 
-5.  **`preprocess_pipeline(image, config=None)`**
-    *   **Propósito**: Aplicar una secuencia completa de pasos de preprocesamiento a una imagen.
-    *   **Descripción del Algoritmo**: Esta función actúa como un orquestador, llamando a las funciones de preprocesamiento individuales (`correct_illumination`, `normalize_image`, `denoise_image`, `invert_image`) en un orden específico. El orden y los parámetros para cada paso se definen en el diccionario `config`. Si no se proporciona `config`, se utiliza un conjunto de parámetros predeterminados. La imagen de salida de un paso se convierte en la entrada del siguiente. Esto permite aplicar una cadena de transformaciones de manera consistente.
-    *   **Parámetros**:
-        *   `image`: Imagen de entrada (NumPy array).
-        *   `config`: Diccionario opcional que especifica los métodos y parámetros para cada paso ('normalize', 'denoise', 'correct_illumination', 'invert').
-    *   **Proceso**:
-        *   Si no se proporciona `config`, utiliza una configuración por defecto:
-            1.  Corrección de iluminación: `method='subtract_background'`, `params={'kernel_size': 51}`.
-            2.  Normalización: `method='clahe'`, `clip_limit=2.0`, `tile_grid_size=(8, 8)`.
-            3.  Filtrado de ruido: `method='gaussian'`, `params={'ksize': (5, 5), 'sigma': 0}`.
-            4.  Inversión: `True`.
-        *   El orden de aplicación de las operaciones es: corrección de iluminación, normalización, filtrado de ruido e inversión (si está configurado).
-    *   **Salida**: Imagen preprocesada (NumPy array).
+5.  preprocess_pipeline(image, config=None)
+    -   Propósito: Aplicar una secuencia completa de pasos de preprocesamiento a una imagen.
+    -   Descripción del Algoritmo: Esta función actúa como un orquestador, llamando a las funciones de preprocesamiento individuales (correct_illumination, normalize_image, denoise_image, invert_image) en un orden específico. El orden y los parámetros para cada paso se definen en el diccionario config. Si no se proporciona config, se utiliza un conjunto de parámetros predeterminados. La imagen de salida de un paso se convierte en la entrada del siguiente. Esto permite aplicar una cadena de transformaciones de manera consistente.
+    -   Parámetros:
+        -   image: Imagen de entrada (NumPy array).
+        -   config: Diccionario opcional que especifica los métodos y parámetros para cada paso ('normalize', 'denoise', 'correct_illumination', 'invert').
+    -   Proceso:
+        -   Si no se proporciona config, utiliza una configuración por defecto:
+            1.  Corrección de iluminación: method='subtract_background', params={'kernel_size': 51}.
+            2.  Normalización: method='clahe', clip_limit=2.0, tile_grid_size=(8, 8).
+            3.  Filtrado de ruido: method='gaussian', params={'ksize': (5, 5), 'sigma': 0}.
+            4.  Inversión: True.
+        -   El orden de aplicación de las operaciones es: corrección de iluminación, normalización, filtrado de ruido e inversión (si está configurado).
+    -   Salida: Imagen preprocesada (NumPy array).
 
-6.  **`visualize_preprocessing_steps(original_image, config=None)`**
-    *   **Propósito**: Visualizar cada paso del preprocesamiento para facilitar el ajuste de parámetros.
-    *   **Descripción del Algoritmo**: Esta función es una herramienta de depuración y ajuste. Toma una imagen original y una configuración de preprocesamiento. Luego, aplica cada paso del pipeline (corrección de iluminación, normalización, reducción de ruido, inversión) secuencialmente, similar a `preprocess_pipeline`. La diferencia clave es que, después de cada paso, muestra la imagen resultante en una subgráfica utilizando `matplotlib.pyplot`. Esto permite al usuario ver el efecto de cada operación individualmente y cómo contribuye al resultado final. La función muestra la imagen original, las imágenes intermedias después de cada transformación configurada y la imagen final procesada.
-    *   **Parámetros**:
-        *   `original_image`: Imagen original (NumPy array).
-        *   `config`: Configuración para el preprocesamiento, similar a `preprocess_pipeline`.
-    *   **Proceso**:
-        *   Utiliza `matplotlib.pyplot` para mostrar en subgráficos:
-            *   Imagen Original.
-            *   Imagen con Corrección de Iluminación (si se aplica).
-            *   Imagen Normalizada (si se aplica).
-            *   Imagen con Reducción de Ruido (si se aplica).
-            *   Imagen Invertida (si se aplica).
-            *   Resultado Final del pipeline.
-        *   Cada paso se aplica sobre el resultado del paso anterior.
-    *   **Salida**: Muestra la figura con los pasos y devuelve la imagen final procesada.
+6.  visualize_preprocessing_steps(original_image, config=None)
+    -   Propósito: Visualizar cada paso del preprocesamiento para facilitar el ajuste de parámetros.
+    -   Descripción del Algoritmo: Esta función es una herramienta de depuración y ajuste. Toma una imagen original y una configuración de preprocesamiento. Luego, aplica cada paso del pipeline (corrección de iluminación, normalización, reducción de ruido, inversión) secuencialmente, similar a preprocess_pipeline. La diferencia clave es que, después de cada paso, muestra la imagen resultante en una subgráfica utilizando matplotlib.pyplot. Esto permite al usuario ver el efecto de cada operación individualmente y cómo contribuye al resultado final. La función muestra la imagen original, las imágenes intermedias después de cada transformación configurada y la imagen final procesada.
+    -   Parámetros:
+        -   original_image: Imagen original (NumPy array).
+        -   config: Configuración para el preprocesamiento, similar a preprocess_pipeline.
+    -   Proceso:
+        -   Utiliza matplotlib.pyplot para mostrar en subgráficos:
+            -   Imagen Original.
+            -   Imagen con Corrección de Iluminación (si se aplica).
+            -   Imagen Normalizada (si se aplica).
+            -   Imagen con Reducción de Ruido (si se aplica).
+            -   Imagen Invertida (si se aplica).
+            -   Resultado Final del pipeline.
+        -   Cada paso se aplica sobre el resultado del paso anterior.
+    -   Salida: Muestra la figura con los pasos y devuelve la imagen final procesada.
 
-Bloque Principal (`if __name__ == "__main__":`)
-*   Proporciona un ejemplo de uso cargando una imagen (`sample_image.png`), definiendo una configuración personalizada y llamando a `visualize_preprocessing_steps` (aunque la llamada está comentada en el script original).
-*   Incluye una verificación básica para `image is None` (aunque la acción a tomar si es `None` está incompleta).
+Bloque Principal (if __name__ == "__main__":)
+-   Proporciona un ejemplo de uso cargando una imagen (sample_image.png), definiendo una configuración personalizada y llamando a visualize_preprocessing_steps (aunque la llamada está comentada en el script original).
+-   Incluye una verificación básica para image is None (aunque la acción a tomar si es None está incompleta).
 
 Consideraciones Adicionales del Script Original:
-*   El script tiene algunas líneas incompletas o potencialmente mejorables:
-    *   En `denoise_image` y `correct_illumination`, el bucle `for key, default_value in defaults[method].items():` itera sobre los valores por defecto pero no los utiliza para actualizar el diccionario `params` si una clave específica no está presente en `params`. Debería ser algo como: `params[key] = params.get(key, default_value)`.
-    *   En `correct_illumination` (método `homomorphic`), la línea `crow, ccol =` está incompleta; debería ser `crow, ccol = rows // 2, cols // 2` para calcular el centro de la imagen para el filtro de frecuencia.
-    *   En el bloque `__main__`, la línea después de `if image is None:` está vacía y debería manejar el error, por ejemplo, imprimiendo un mensaje y saliendo.
-    *   La llamada a `visualize_preprocessing_steps` en `__main__` está comentada. Si se descomenta, se deben importar `matplotlib.pyplot as plt` y `numpy as np` (aunque `np` ya está importado indirectamente a través de `cv2` en muchos casos, es buena práctica importarlo explícitamente si se usa directamente, como en `np.log1p`). También, `cv2` debería importarse.
-*   El módulo es una herramienta útil y modular para el preprocesamiento de imágenes, permitiendo configurar y visualizar cada etapa del proceso.
+-   El script tiene algunas líneas incompletas o potencialmente mejorables:
+    -   En denoise_image y correct_illumination, el bucle for key, default_value in defaults[method].items(): itera sobre los valores por defecto pero no los utiliza para actualizar el diccionario params si una clave específica no está presente en params. Debería ser algo como: params[key] = params.get(key, default_value).
+    -   En correct_illumination (método homomorphic), la línea crow, ccol = está incompleta; debería ser crow, ccol = rows // 2, cols // 2 para calcular el centro de la imagen para el filtro de frecuencia.
+    -   En el bloque __main__, la línea después de if image is None: está vacía y debería manejar el error, por ejemplo, imprimiendo un mensaje y saliendo.
+    -   La llamada a visualize_preprocessing_steps en __main__ está comentada. Si se descomenta, se deben importar matplotlib.pyplot as plt y numpy as np (aunque np ya está importado indirectamente a través de cv2 en muchos casos, es buena práctica importarlo explícitamente si se usa directamente, como en np.log1p). También, cv2 debería importarse.
+-   El módulo es una herramienta útil y modular para el preprocesamiento de imágenes, permitiendo configurar y visualizar cada etapa del proceso.

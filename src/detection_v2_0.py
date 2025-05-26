@@ -591,7 +591,7 @@ def visualize_inclusions_v2(original_image: np.ndarray, segmented_image: np.ndar
     Returns:
         Imagen con células segmentadas e inclusiones marcadas
     """
-    from visualization import visualize_inclusions_v2 as viz_inclusions
+    from .visualization import visualize_inclusions_v2 as viz_inclusions
     return viz_inclusions(original_image, segmented_image, all_inclusions, show_visualization)
 
 
@@ -607,7 +607,7 @@ def summarize_inclusions_v2(all_inclusions: Dict[int, List[Dict[str, Any]]],
     Returns:
         Diccionario con estadísticas resumidas
     """
-    from analysis import summarize_inclusions
+    from .analysis import summarize_inclusions
     return summarize_inclusions(all_inclusions, segmented_image)
 
 
@@ -620,7 +620,7 @@ def plot_inclusion_statistics_v2(summary: Dict[str, Any],
         summary: Resumen estadístico generado por summarize_inclusions_v2
         all_inclusions: Diccionario de inclusiones por célula
     """
-    from analysis import plot_inclusion_statistics
+    from .analysis import plot_inclusion_statistics
     plot_inclusion_statistics(summary, all_inclusions)
 
 

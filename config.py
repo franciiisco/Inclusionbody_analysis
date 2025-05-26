@@ -2,14 +2,16 @@
 # filepath: c:\\Users\\fmarquez\\Desktop\\POLIP_Analizer\\config.py
 
 # --- Modos de Ejecución y Visualización ---
-DEVELOPMENT_MODE = True  # True para modo desarrollo (con visualizaciones), False para modo estándar
+DEVELOPMENT_MODE = False  # True para modo desarrollo (con visualizaciones), False para modo estándar
 
 # Opciones de visualización detallada (solo aplican si DEVELOPMENT_MODE es True)
 VISUALIZATION_SETTINGS = {
     'show_preprocessing_steps': False,
     'show_segmentation_results': False,
-    'show_inclusion_detection': True,
-    'show_summary_plots': False
+    'show_inclusion_detection': False,
+    'show_summary_plots': False,
+    'save_intermediate_images': False
+
 }
 
 # Configuración para el modo estándar (actualmente solo define el comportamiento por defecto)
@@ -87,6 +89,7 @@ DETECTION_V2_CONFIG = {
     
     'debug': {
         'save_intermediate_steps': False,  # Guardar pasos intermedios para depuración
+        'save_intermediate_images': False,  # Nueva opción para imágenes de cada paso
         'specific_cell_ids': []  # Para depuración de células específicas
     }
 }

@@ -16,6 +16,9 @@ class AnalysisTab:
         self.process_callback = process_callback
         self.results_callback = results_callback
         
+        # Variable para controlar la generación de imágenes intermedias
+        self.save_intermediate_images = ttk.BooleanVar(value=False)
+        
         # Create main layout with two columns - this will be the only container
         self.main_frame = ttk.Frame(self.parent)
         self.main_frame.pack(fill=ttk.BOTH, expand=True, padx=5, pady=5)
@@ -56,6 +59,30 @@ class AnalysisTab:
         output_btn = ttk.Button(output_frame, text="Examinar", command=self.browse_output_dir)
         output_btn.pack(side=ttk.RIGHT)
         
+        # Sección 1.5: Opciones de visualización (añadida)
+        viz_section = ttk.LabelFrame(self.options_frame, text="Opciones de visualización")
+        viz_section.pack(fill=ttk.X, padx=5, pady=5)
+        
+        # Contenedor para el switch y su etiqueta
+        switch_frame = ttk.Frame(viz_section)
+        switch_frame.pack(fill=ttk.X, padx=5, pady=5)
+        
+        # Etiqueta para el switch
+        ttk.Label(
+            switch_frame, 
+            text="Generar imágenes de\ncada paso del análisis:", 
+            wraplength=160
+        ).pack(side=ttk.LEFT, padx=5)
+        
+        # Switch usando Checkbutton con estilo round-toggle
+        self.images_switch = ttk.Checkbutton(
+            switch_frame,
+            variable=self.save_intermediate_images,
+            bootstyle="round-toggle",
+            command=self._on_images_toggle
+        )
+        self.images_switch.pack(side=ttk.RIGHT, padx=10)
+        
         # Sección 2: Formato de Archivo
         format_section = ttk.LabelFrame(self.options_frame, text="2. Formato de Archivo")
         format_section.pack(fill=ttk.X, padx=5, pady=5)
@@ -71,19 +98,19 @@ class AnalysisTab:
         action_section = ttk.LabelFrame(self.options_frame, text="3. Acciones")
         action_section.pack(fill=ttk.X, padx=5, pady=5)
         
-        process_btn = ttk.Button(
+        self.process_btn = ttk.Button(
             action_section, 
             text="Analizar", 
             command=self.process_callback
         )
-        process_btn.pack(padx=5, pady=10, fill=ttk.X)
+        self.process_btn.pack(padx=5, pady=10, fill=ttk.X)
         
-        results_btn = ttk.Button(
+        self.results_btn = ttk.Button(
             action_section,
             text="Ver Resultados",
             command=self.results_callback
         )
-        results_btn.pack(padx=5, pady=10, fill=ttk.X)
+        self.results_btn.pack(padx=5, pady=10, fill=ttk.X)
         
         # Sección 4: Información de contacto
         contact_section = ttk.LabelFrame(self.options_frame, text="Desarrollado por")
@@ -96,6 +123,33 @@ class AnalysisTab:
         contact_label = ttk.Label(contact_panel, text=contact_info, font=("Segoe UI", 9))
         contact_label.pack(padx=5, pady=5)
 
+    def _on_images_toggle(self):
+        """Callback cuando se activa/desactiva el switch de imágenes"""
+        # Importar los módulos de configuración
+        sys.path.insert(0, root_dir)
+        try:
+            from config import DETECTION_V2_CONFIG, VISUALIZATION_SETTINGS, DEVELOPMENT_MODE
+            
+            # Obtener el estado actual
+            state = self.save_intermediate_images.get()
+            
+            # Actualizar configuración
+            DETECTION_V2_CONFIG['debug']['save_intermediate_images'] = state
+            VISUALIZATION_SETTINGS['save_intermediate_images'] = state
+            
+            # Desactivar también las visualizaciones emergentes cuando el usuario
+            # desactiva la generación de imágenes desde la GUI
+            if not state:
+                VISUALIZATION_SETTINGS['show_preprocessing_steps'] = False
+                VISUALIZATION_SETTINGS['show_segmentation_results'] = False
+                VISUALIZATION_SETTINGS['show_inclusion_detection'] = False
+                VISUALIZATION_SETTINGS['show_summary_plots'] = False
+            
+            # Mostrar mensaje en el área de estado
+            status_text = "activado" if state else "desactivado"
+            self.update_status(f"Generación de imágenes intermedias: {status_text}")
+        except ImportError:
+            self.update_status("Error: No se pudo cargar la configuración")
     def setup_output_frame(self):
         # Create a frame that will contain the status text and progress bar
         status_container = ttk.Frame(self.output_frame)

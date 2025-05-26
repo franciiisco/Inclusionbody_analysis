@@ -5,9 +5,9 @@ Utiliza ttkbootstrap para una apariencia más agradable y profesional.
 import os
 import sys
 import tkinter as tk
+from tkinter import filedialog, messagebox, scrolledtext
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
-from tkinter import filedialog, messagebox, scrolledtext
 import threading
 import json
 import matplotlib.pyplot as plt
@@ -176,18 +176,35 @@ class POLIP_Analyzer_GUI:
                 os.makedirs(self.output_dir.get(), exist_ok=True)
             except Exception as e:
                 messagebox.showerror("Error", f"No se pudo crear el directorio de salida: {e}")
-                return        # Deshabilitar botones mientras se ejecuta - FIXME: Need to get button references from analysis_tab
-        # self.process_btn.config(state=tk.DISABLED)
-        # self.results_btn.config(state=tk.DISABLED)
+                return
+        
         self.is_running = True
         self.progress_value = 0.0
         self.analysis_tab.update_progress(0)
-          # Mostrar mensaje inicial
+        
+        # Obtener el estado del switch de imágenes intermedias
+        save_images = self.analysis_tab.save_intermediate_images.get()
+        images_status = "ACTIVADA" if save_images else "DESACTIVADA"
+        
+        # Actualizar la configuración global antes de comenzar el procesamiento
+        from config import DETECTION_V2_CONFIG, VISUALIZATION_SETTINGS
+        DETECTION_V2_CONFIG['debug']['save_intermediate_images'] = save_images
+        VISUALIZATION_SETTINGS['save_intermediate_images'] = save_images
+        
+        # Desactivar también las visualizaciones emergentes cuando se ejecuta desde la GUI
+        if not save_images:
+            VISUALIZATION_SETTINGS['show_preprocessing_steps'] = False
+            VISUALIZATION_SETTINGS['show_segmentation_results'] = False
+            VISUALIZATION_SETTINGS['show_inclusion_detection'] = False
+            VISUALIZATION_SETTINGS['show_summary_plots'] = False
+        
+        # Mostrar mensaje inicial
         self.update_status(
             f"Iniciando procesamiento por lotes...\n"
             f"Directorio de entrada: {self.input_dir.get()}\n"
             f"Patrón de archivos: {self.file_pattern.get()}\n"
-            f"Directorio de salida: {self.output_dir.get()}",
+            f"Directorio de salida: {self.output_dir.get()}\n"
+            f"Generación de imágenes intermedias: {images_status}",
             append=False
         )
         
@@ -208,13 +225,13 @@ class POLIP_Analyzer_GUI:
             
             # Capturar la salida estándar
             output_buffer = io.StringIO()
-            with redirect_stdout(output_buffer):
-                # Ejecutar el procesamiento
+            with redirect_stdout(output_buffer):                # Ejecutar el procesamiento
                 result = batch_process(
                     input_dir=self.input_dir.get(),
                     output_dir=self.output_dir.get(),
                     file_pattern=self.file_pattern.get(),
-                    enforce_naming_convention=True  # Siempre validar formato
+                    enforce_naming_convention=True,  # Siempre validar formato
+                    save_intermediate_images=self.analysis_tab.save_intermediate_images.get()  # Pasar el estado del switch
                 )
             
             # Mostrar la salida capturada en el área de resultados
@@ -243,8 +260,7 @@ class POLIP_Analyzer_GUI:
         finally:            # Habilitar botones al terminar - FIXME: Need to get button references from analysis_tab
             # self.root.after(0, lambda: self.process_btn.config(state=tk.NORMAL))
             # self.root.after(0, lambda: self.results_btn.config(state=tk.NORMAL))
-            self.is_running = False
-
+            self.is_running = False    
     def _update_results(self, output_text, result):
         """Actualizar la interfaz con los resultados del procesamiento"""
         self.update_status(output_text)
@@ -256,11 +272,16 @@ class POLIP_Analyzer_GUI:
           # Mensaje de finalización
         self.processing_status.set("Procesamiento completado")
         
+        # Determinar si se generaron imágenes intermedias
+        images_note = ""
+        if self.analysis_tab.save_intermediate_images.get():
+            images_note = "\n\nSe han generado imágenes intermedias de cada paso del análisis."
+        
         # Mostrar un mensaje de éxito
         messagebox.showinfo("Procesamiento completado", 
                            f"Se han procesado {result['processed_files']} imágenes.\n"
                            f"Los resultados están disponibles en:\n{self.output_dir.get()}\n\n"
-                           f"Se ha generado un archivo Excel con el análisis completo.")
+                           f"Se ha generado un archivo Excel con el análisis completo.{images_note}")
 
     def _show_error(self, error_msg):
         """Mostrar un mensaje de error en la interfaz"""
