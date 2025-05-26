@@ -272,15 +272,14 @@ def export_results_to_excel(image_results: List[Tuple[str, Dict[str, Any]]], out
                 'Replica': metadata['replica'],
                 'Tiempo (h)': metadata['tiempo'].replace('t', '')
             }
-            # Añadir métricas calculadas
+            # Añadir métricas calculadas (sin OD600, UFC/mL, Log UFC/mL)
             row.update({
                 'Recuento_Celulas': result.get('total_cells', 0),
                 'Recuento_Inclusiones': result.get('total_inclusions', 0),
                 'Area_Celulas_px': result.get('total_cell_area', 0),
                 'Area_Inclusiones_px': result.get('total_inclusion_area', 0),
                 'Inclusiones/Celula': result.get('avg_inclusions_per_cell', 0),
-                'Area_Inclusiones/Celula_perc': result.get('global_inclusion_ratio', 0) * 100,  # Cambiado a enfoque global
-                # 'Ratio_Global_Area_perc': result.get('global_inclusion_ratio', 0) * 100,  # Eliminado para evitar redundancia
+                'Area_Inclusiones/Celula_perc': result.get('global_inclusion_ratio', 0) * 100,
             })
             
             transformed_data.append(row)
@@ -299,12 +298,9 @@ def export_results_to_excel(image_results: List[Tuple[str, Dict[str, Any]]], out
         # Ordenar tabla
         tabla_formateada.sort_values(by=['Medio', 'Replica', 'Tiempo (h)'], inplace=True)
         
-        # Calcular promedios por Medio y Tiempo
+        # Calcular promedios por Medio y Tiempo (sin las columnas eliminadas)
         update_progress(value=0.3, detail="Calculando promedios generales...")
         promedios_generales = tabla_formateada.groupby(['Medio', 'Tiempo (h)']).agg(
-            UFC_mL_Promedio=('UFC/mL', lambda x: x.mean(skipna=True)),
-            Log_UFC_mL_Promedio=('Log (UFC/mL)', lambda x: x.mean(skipna=True)),
-            DO600_Promedio=('DO600', lambda x: x.mean(skipna=True)),
             Promedio_Recuento_Celulas=('Recuento_Celulas', lambda x: x.mean(skipna=True)),
             Promedio_Recuento_Inclusiones=('Recuento_Inclusiones', lambda x: x.mean(skipna=True)),
             Promedio_Area_Celulas_px=('Area_Celulas_px', lambda x: x.mean(skipna=True)),
@@ -313,9 +309,6 @@ def export_results_to_excel(image_results: List[Tuple[str, Dict[str, Any]]], out
             SD_Inclusiones_Celula=('Inclusiones/Celula', lambda x: x.std(skipna=True)),
             Promedio_Area_Inclusiones_Celula_perc=('Area_Inclusiones/Celula_perc', lambda x: x.mean(skipna=True)),
             SD_Area_Inclusiones_Celula_perc=('Area_Inclusiones/Celula_perc', lambda x: x.std(skipna=True)),
-            # Eliminadas las siguientes líneas:
-            # Promedio_Ratio_Global_perc=('Ratio_Global_Area_perc', lambda x: x.mean(skipna=True)),
-            # SD_Ratio_Global_perc=('Ratio_Global_Area_perc', lambda x: x.std(skipna=True)),
             Numero_Imagenes=('Replica', 'count')
         ).reset_index()
         
