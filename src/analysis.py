@@ -43,17 +43,16 @@ def summarize_inclusions(all_inclusions: Dict[int, List[Dict[str, Any]]],
     # Tamaño de inclusiones
     all_inclusion_areas = [inc['area'] for incs in all_inclusions.values() for inc in incs]
     avg_inclusion_area = np.mean(all_inclusion_areas) if all_inclusion_areas else 0
-    std_inclusion_area = np.std(all_inclusion_areas) if all_inclusion_areas else 0
-    
-    # Ratio de área de inclusiones respecto a células
+    std_inclusion_area = np.std(all_inclusion_areas) if all_inclusion_areas else 0    # Ratio de área de inclusiones respecto a células
     inclusion_ratios = []
-    for cell_id, incs in all_inclusions.items():        # Calcular área de la célula
+    for cell_id, incs in all_inclusions.items():
+        # Calcular área de la célula
         cell_mask = (segmented_image == cell_id)
         cell_area = np.sum(cell_mask)
         
-        if cell_area > 0 and incs:
-            # Suma de áreas de todas las inclusiones en esta célula
-            total_inclusion_area = sum(inc['area'] for inc in incs)
+        if cell_area > 0:  # Considera TODAS las células con área válida
+            # Suma de áreas de todas las inclusiones en esta célula (0 si no hay inclusiones)
+            total_inclusion_area = sum(inc['area'] for inc in incs) if incs else 0
             ratio = total_inclusion_area / cell_area
             inclusion_ratios.append(ratio)
     
@@ -69,11 +68,12 @@ def summarize_inclusions(all_inclusions: Dict[int, List[Dict[str, Any]]],
         cell_mask = (segmented_image == cell_id)
         cell_area = np.sum(cell_mask)
         total_cell_area += cell_area
-        
-        # Calcular área total de inclusiones para esta célula
+          # Calcular área total de inclusiones para esta célula
         cell_inclusion_area = sum(inc['area'] for inc in incs)
         total_inclusion_area += cell_inclusion_area
     
+    # Calcular ratio global para verificación
+    global_inclusion_ratio = (total_inclusion_area / total_cell_area) if total_cell_area > 0 else 0
     return {
         'total_cells': total_cells,
         'cells_with_inclusions': cells_with_inclusions,
@@ -86,6 +86,7 @@ def summarize_inclusions(all_inclusions: Dict[int, List[Dict[str, Any]]],
         'std_inclusion_area': std_inclusion_area,
         'avg_inclusion_ratio': avg_inclusion_ratio,
         'std_inclusion_ratio': std_inclusion_ratio,
+        'global_inclusion_ratio': global_inclusion_ratio,  # Añadido: Ratio global
         'total_cell_area': total_cell_area,
         'total_inclusion_area': total_inclusion_area
     }
@@ -213,12 +214,12 @@ def _calculate_aggregate_statistics(results: List[Dict[str, Any]]) -> Dict[str, 
     """
     if not results:
         return {}
-    
-    # Métricas a agregar
+      # Métricas a agregar
     metrics = [
         'avg_inclusions_per_cell',
         'avg_inclusion_area',
         'avg_inclusion_ratio',
+        'global_inclusion_ratio',
         'percent_cells_with_inclusions'
     ]
     
@@ -271,18 +272,15 @@ def export_results_to_excel(image_results: List[Tuple[str, Dict[str, Any]]], out
                 'Replica': metadata['replica'],
                 'Tiempo (h)': metadata['tiempo'].replace('t', '')
             }
-              # Añadir métricas calculadas
+            # Añadir métricas calculadas
             row.update({
                 'Recuento_Celulas': result.get('total_cells', 0),
                 'Recuento_Inclusiones': result.get('total_inclusions', 0),
                 'Area_Celulas_px': result.get('total_cell_area', 0),
                 'Area_Inclusiones_px': result.get('total_inclusion_area', 0),
                 'Inclusiones/Celula': result.get('avg_inclusions_per_cell', 0),
-                'Area_Inclusiones/Celula_perc': result.get('avg_inclusion_ratio', 0) * 100,  # Convertir a porcentaje
-                # Campos adicionales para completar manualmente
-                'UFC/mL': np.nan,
-                'Log (UFC/mL)': np.nan,
-                'DO600': np.nan
+                'Area_Inclusiones/Celula_perc': result.get('global_inclusion_ratio', 0) * 100,  # Cambiado a enfoque global
+                # 'Ratio_Global_Area_perc': result.get('global_inclusion_ratio', 0) * 100,  # Eliminado para evitar redundancia
             })
             
             transformed_data.append(row)
@@ -315,7 +313,10 @@ def export_results_to_excel(image_results: List[Tuple[str, Dict[str, Any]]], out
             SD_Inclusiones_Celula=('Inclusiones/Celula', lambda x: x.std(skipna=True)),
             Promedio_Area_Inclusiones_Celula_perc=('Area_Inclusiones/Celula_perc', lambda x: x.mean(skipna=True)),
             SD_Area_Inclusiones_Celula_perc=('Area_Inclusiones/Celula_perc', lambda x: x.std(skipna=True)),
-            Numero_Replicas=('Replica', 'count')
+            # Eliminadas las siguientes líneas:
+            # Promedio_Ratio_Global_perc=('Ratio_Global_Area_perc', lambda x: x.mean(skipna=True)),
+            # SD_Ratio_Global_perc=('Ratio_Global_Area_perc', lambda x: x.std(skipna=True)),
+            Numero_Imagenes=('Replica', 'count')
         ).reset_index()
         
         # Ordenar promedios
