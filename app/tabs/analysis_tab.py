@@ -89,7 +89,7 @@ class AnalysisTab:
         
         format_note = ttk.Label(
             format_section, 
-            text="Los archivos deben seguir el formato:\n\nCONDICION_BOTE_REPLICA_TIEMPO_Nº\nEjemplo: MEI_B1_R3_t4_026_BF1.png\n\nPuedes omitir BOTE o REPLICA si no es necesario.",
+            text="Los archivos deben seguir el formato:\n\nCONDICION_BOTE_REPLICA_TIEMPO_Nº\nEjemplo: MEI_B1_R3_t4_026_BF1.png\n\nOmitir BOTE y/o REPLICA si no es necesario.",
             justify='left'
         )
         format_note.pack(padx=10, pady=5, anchor='w')
@@ -158,7 +158,7 @@ class AnalysisTab:
         # Área de texto para los mensajes de estado
         self.status_text = scrolledtext.ScrolledText(status_container, wrap=ttk.WORD)
         self.status_text.pack(fill=ttk.BOTH, expand=True, padx=5, pady=5)
-        self.status_text.insert(ttk.END, "Listo para analizar. Configure las opciones y haga clic en 'Analizar'. \n\nEl análisis puede tardar varios minutos, por favor sea paciente. Déjeme trabajando, usted puede hacer otras cosas mientras.")
+        self.status_text.insert(ttk.END, "Listo para analizar.\n\nConfigure las opciones y haga clic en 'Analizar'.\n\nLe recomiendo leer la pestaña de INFORMACIÓN si es su primera vez utilizando este programa. \n\nEl análisis puede tardar varios minutos, por favor sea paciente. Déjeme trabajando, usted puede hacer otras cosas mientras.")
         self.status_text.config(state=ttk.DISABLED)
           # Barra de progreso
         progress_frame = ttk.Frame(status_container)
