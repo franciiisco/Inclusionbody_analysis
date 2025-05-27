@@ -115,7 +115,6 @@ def process_image_v2(
     '''    
     if detection_config is None:
         detection_config = DETECTION_V2_CONFIG # Usar configuración v2
-    
     if output_dir is None:
         output_dir = "data/processed"
     
@@ -125,6 +124,12 @@ def process_image_v2(
     
     # Crear directorio de salida si no existe
     os.makedirs(output_dir, exist_ok=True)
+    
+    # Crear subcarpetas para organizar los archivos
+    images_dir = os.path.join(output_dir, "Imagenes")
+    data_dir = os.path.join(output_dir, "Datos_crudos")
+    os.makedirs(images_dir, exist_ok=True)
+    os.makedirs(data_dir, exist_ok=True)
     
     # Cargar imagen
     print(f"Cargando imagen: {image_path}")
@@ -142,11 +147,10 @@ def process_image_v2(
     
     # Visualizar el preprocesamiento si está habilitado
     if DEVELOPMENT_MODE and VISUALIZATION_SETTINGS.get('show_preprocessing_steps'):
-        visualize_preprocessing_steps(original_image, preprocess_config)
-      # Guardar imagen preprocesada solo si está habilitado en la configuración
+        visualize_preprocessing_steps(original_image, preprocess_config)      # Guardar imagen preprocesada solo si está habilitado en la configuración
     base_filename = os.path.splitext(os.path.basename(image_path))[0]
     if VISUALIZATION_SETTINGS.get('save_intermediate_images'):
-        preprocessed_path = os.path.join(output_dir, f"{base_filename}_preprocessed_v2.png")
+        preprocessed_path = os.path.join(images_dir, f"{base_filename}_preprocessed_v2.png")
         cv2.imwrite(preprocessed_path, preprocessed)
     
     # Paso 2: Segmentación
@@ -165,10 +169,9 @@ def process_image_v2(
     
     # Visualizar la segmentación si está habilitado
     if DEVELOPMENT_MODE and VISUALIZATION_SETTINGS.get('show_segmentation_results'):
-        visualize_segmentation(original_image, segmented, binary, draw_contours=False)
-      # Guardar imagen segmentada solo si está habilitado en la configuración
+        visualize_segmentation(original_image, segmented, binary, draw_contours=False)      # Guardar imagen segmentada solo si está habilitado en la configuración
     if VISUALIZATION_SETTINGS.get('save_intermediate_images'):
-        segmented_path = os.path.join(output_dir, f"{base_filename}_segmented_v2.png")
+        segmented_path = os.path.join(images_dir, f"{base_filename}_segmented_v2.png")
         segmented_vis = (segmented * 50).astype(np.uint8)  # Escalar para visualización
         cv2.imwrite(segmented_path, segmented_vis)
     
@@ -190,18 +193,16 @@ def process_image_v2(
         segmented, 
         all_inclusions, 
         show_visualization=(DEVELOPMENT_MODE and VISUALIZATION_SETTINGS.get('show_inclusion_detection'))
-    )
-      # Guardar imagen con inclusiones detectadas (siempre se guarda como resultado principal)
-    inclusions_path = os.path.join(output_dir, f"{base_filename}_inclusions_v2.png")
+    )      # Guardar imagen con inclusiones detectadas en la carpeta de imágenes
+    inclusions_path = os.path.join(images_dir, f"{base_filename}_inclusions_v2.png")
     cv2.imwrite(inclusions_path, result_image)
       # Generar estadísticas
     summary = summarize_inclusions_v2(all_inclusions, segmented)
     
     # Convert numpy types before JSON serialization
     summary = convert_numpy_types(summary)
-    
-    # Guardar estadísticas en formato JSON
-    stats_path = os.path.join(output_dir, f"{base_filename}_stats_v2.json")
+      # Guardar estadísticas en formato JSON en la carpeta de datos crudos
+    stats_path = os.path.join(data_dir, f"{base_filename}_stats_v2.json")
     with open(stats_path, 'w') as f:
         json.dump(summary, f, indent=4)
     
@@ -259,12 +260,17 @@ def batch_process_v2(
     import cv2
     import numpy as np
     import traceback
-    
-    # Configurar directorio de salida
+      # Configurar directorio de salida
     if output_dir is None:
         output_dir = os.path.join(input_dir, "processed_v2")
     
     os.makedirs(output_dir, exist_ok=True)
+    
+    # Crear subcarpetas para organizar los archivos
+    images_dir = os.path.join(output_dir, "Imagenes")
+    data_dir = os.path.join(output_dir, "Datos_crudos")
+    os.makedirs(images_dir, exist_ok=True)
+    os.makedirs(data_dir, exist_ok=True)
     
     # Encontrar todas las imágenes
     image_paths = glob.glob(os.path.join(input_dir, file_pattern))
@@ -312,9 +318,8 @@ def batch_process_v2(
             print(f"Error procesando {base_name}: {e}")
             traceback.print_exc()
             skipped_files.append(base_name)
-    
-    # Guardar resultados consolidados
-    summary_path = os.path.join(output_dir, "batch_summary_v2.json")
+      # Guardar resultados consolidados en la carpeta de datos crudos
+    summary_path = os.path.join(data_dir, "batch_summary_v2.json")
     with open(summary_path, 'w') as f:
         # Limpiar valores numpy para JSON
         clean_results = {}
@@ -327,9 +332,8 @@ def batch_process_v2(
     # Generar agregaciones por condición/tiempo/réplica
     if image_results:
         aggregated_results = aggregate_inclusion_data(image_results)
-        
-        # Guardar resultados agregados
-        aggregated_path = os.path.join(output_dir, "aggregated_results_v2.json")
+          # Guardar resultados agregados en la carpeta de datos crudos
+        aggregated_path = os.path.join(data_dir, "aggregated_results_v2.json")
         with open(aggregated_path, 'w') as f:
             # Convertir valores numpy a tipos Python nativos para JSON
             clean_aggregated = {}

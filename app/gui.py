@@ -302,8 +302,7 @@ class POLIP_Analyzer_GUI:
         images_note = ""
         if self.analysis_tab.save_intermediate_images.get():
             images_note = "\n\nSe han generado imágenes intermedias de cada paso del análisis."
-        
-        # Mostrar un mensaje de éxito
+          # Mostrar un mensaje de éxito
         messagebox.showinfo("Procesamiento completado", 
                            f"Se han procesado {result['processed_files']} imágenes.\n"
                            f"Los resultados están disponibles en:\n{self.output_dir.get()}\n\n"
@@ -316,9 +315,11 @@ class POLIP_Analyzer_GUI:
         messagebox.showerror("Error", "Se ha producido un error durante el procesamiento")
 
     def _view_aggregated_results(self):
-        """Mostrar los resultados agregados en una ventana separada"""        # Verificar si existen resultados agregados
+        """Mostrar los resultados agregados en una ventana separada"""
+        # Verificar si existen resultados agregados en la nueva ubicación
         aggregated_file = os.path.join(
             self.output_dir.get(), 
+            "Datos_crudos",
             "aggregated_results_v2.json"
         )
         
