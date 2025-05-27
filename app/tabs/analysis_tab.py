@@ -89,7 +89,7 @@ class AnalysisTab:
         
         format_note = ttk.Label(
             format_section, 
-            text="Los archivos deben seguir el formato:\nCONDICION_BOTE_REPLICA_TIEMPO_Nº\nEjemplo: MEI_B1_R3_t4_026_BF1.png",
+            text="Los archivos deben seguir el formato:\n\nCONDICION_BOTE_REPLICA_TIEMPO_Nº\nEjemplo: MEI_B1_R3_t4_026_BF1.png\n\nPuedes omitir BOTE o REPLICA si no es necesario.",
             justify='left'
         )
         format_note.pack(padx=10, pady=5, anchor='w')

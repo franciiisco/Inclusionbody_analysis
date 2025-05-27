@@ -36,7 +36,7 @@ from app.tabs.info_tab import InfoTab
 class POLIP_Analyzer_GUI:    
     def __init__(self, root):
         self.root = root
-        self.root.title("POLIP Analyzer")        
+        self.root.title("Análisis de Inclusiones de Polifosfatos")        
         self.root.geometry("1000x700")
         self.root.minsize(800, 600)
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -395,7 +395,7 @@ class POLIP_Analyzer_GUI:
 def main():
     # Crear la ventana principal con ttkbootstrap
     root = ttk.Window(
-        title="Analizador de Inclusiones de Polifosfatos",
+        title="Análisis de Inclusiones de Polifosfatos",
         themename="cosmo",  # Temas: cosmo, flatly, journal, litera, lumen, etc.
         size=(1000, 700),
         minsize=(800, 600),
