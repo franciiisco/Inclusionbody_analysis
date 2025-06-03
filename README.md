@@ -1,8 +1,8 @@
-# POLIP_Analizer
+# APIC: Advanced Polyphosphate Inclusion Quantification
 
 ## Descripción del Proyecto
 
-POLIP_Analizer es una herramienta avanzada diseñada para el análisis automatizado de imágenes de microscopía de células bacterianas con inclusiones de polifosfatos. El sistema proporciona un pipeline completo que incluye preprocesamiento de imágenes, segmentación celular, detección avanzada de inclusiones y análisis estadístico detallado. Cuenta con una interfaz gráfica moderna y capacidades de procesamiento por lotes.
+APIC es una herramienta avanzada diseñada para el análisis automatizado de imágenes de microscopía de células bacterianas con inclusiones de polifosfatos. El sistema proporciona un pipeline completo que incluye preprocesamiento de imágenes, segmentación celular, detección avanzada de inclusiones y análisis estadístico detallado. Cuenta con una interfaz gráfica moderna y capacidades de procesamiento por lotes.
 
 ## Características Principales
 
@@ -58,7 +58,7 @@ POLIP_Analizer es una herramienta avanzada diseñada para el análisis automatiz
 1. Clona este repositorio:
    ```bash
    git clone <URL_DEL_REPOSITORIO>
-   cd POLIP_Analizer
+   cd APIC
    ```
 
 2. Instala las dependencias:
@@ -100,12 +100,6 @@ python main.py --batch --input "data/raw" --no-enforce-naming
 # Con patrón específico de archivos
 python main.py --batch --input "data/raw" --pattern "*.{tif,png,jpg}"
 ```
-
-### 3. Notebooks Interactivos
-
-Explora los notebooks en `notebooks/` para:
-- **`parameter_tuning.ipynb`**: Ajuste fino de parámetros de detección
-- **`result_analysis.ipynb`**: Análisis estadístico avanzado de resultados
 
 ## Funcionalidades Avanzadas
 
@@ -160,6 +154,7 @@ Para un análisis óptimo, se recomienda seguir la convención de nomenclatura:
 ```
 CONDICION_BOTE_REPLICA_TIEMPO_NUMERO.extension
 ```
+Existe flexibilidad en la nomenclatura de las imagenes, puede omitirse BOTE y REPLICA. Los datos por imagen seran relacionados en base a CONDICION y TIEMPO, cuando BOTE Y REPLICA no se hayan especificado.
 
 **Ejemplo**: `Control_B1_R2_24h_001.tif`
 
@@ -250,7 +245,7 @@ Para cada imagen procesada se generan:
 ## Limitaciones Conocidas
 
 - **Calidad de imagen**: Requiere imágenes con contraste suficiente entre células e inclusiones
-- **Resolución**: Optimizado para microscopía de fluorescencia con resolución típica
+- **Resolución**: Optimizado para microscopía con resolución típica
 - **Solapamiento**: Células muy superpuestas pueden afectar la segmentación
 - **Artefactos**: Objetos brillantes no celulares pueden ser detectados como inclusiones
 
@@ -296,31 +291,21 @@ Las contribuciones son bienvenidas. Para contribuir:
 5. Push a la rama (`git push origin feature/nueva-funcionalidad`)
 6. Abre un Pull Request
 
-### Áreas de Mejora
-
-- Algoritmos de detección alternativos
-- Soporte para nuevos formatos de imagen
-- Análisis estadístico avanzado
-- Optimización de rendimiento
-- Interfaz web
-
 ## Licencia
 
-Este proyecto está licenciado bajo [especificar licencia]. Ver el archivo LICENSE para más detalles.
+Este proyecto actualmente **no tiene una licencia de software libre**. Todos los derechos reservados por el autor.  
+Para usos, distribución o modificaciones, contacta con el desarrollador.
 
 ## Citas y Referencias
 
-Si utilizas POLIP_Analizer en tu investigación, por favor cita:
+Si utilizas APIC en tu investigación, por favor cita:
 
 ```
-[Pendiente: añadir información de citación]
+Márquez-Urbano, F. (2025). APIC: Advanced Polyphosphate Inclusion Cuantification (Versión 1.0) [Software]. CNTA. https://github.com/franciiisco/Inclusionbody_analysis.git
 ```
 
 ## Contacto
 
-- **Desarrollador**: [Francisco Márquez Urbano]
-- **Email**: [fmarquez@cnta.es]
-
----
-
-**Nota**: Este README se actualiza regularmente. Para la documentación más reciente, consulta la versión en línea del repositorio.
+- **Desarrollador**: Francisco Márquez Urbano
+- **Email**: fmarquez@cnta.es
+- **Email**: franciscomarquezurbano@gmail.com

@@ -15,6 +15,17 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from PIL import Image, ImageTk
 import traceback
 
+def resource_path(relative_path):
+    """Obtener la ruta absoluta al recurso, funciona tanto en desarrollo como en el ejecutable."""
+    try:
+        # PyInstaller crea un directorio temporal y guarda la ruta en _MEIPASS
+        base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    except Exception:
+        # En modo desarrollo, usamos el directorio del script
+        base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    
+    return os.path.join(base_path, relative_path)
+
 # Ajustar el path para importar desde el directorio raíz
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, root_dir)
@@ -36,7 +47,7 @@ from app.tabs.info_tab import InfoTab
 class POLIP_Analyzer_GUI:    
     def __init__(self, root):
         self.root = root
-        self.root.title("Análisis de Inclusiones de Polifosfatos")        
+        self.root.title("APIC: Análisis de Inclusiones de Polifosfatos")        
         self.root.geometry("1000x700")
         self.root.minsize(800, 600)
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -61,62 +72,46 @@ class POLIP_Analyzer_GUI:
         
         # Cargar el logo en la esquina inferior izquierda
         self.load_logo()
-    
+
     def load_app_icon(self):
         """Cargar el icono de la aplicación"""
-        # Buscar el icono en múltiples ubicaciones posibles
-        icon_paths = [
-            "data/logo/icon.ico",  # Ruta relativa desde el directorio de trabajo
-            os.path.join(root_dir, "data", "logo", "icon.ico"),  # Ruta absoluta basada en root_dir
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "logo", "icon.ico")  # Ruta relativa al archivo actual
-        ]
-        
-        for icon_path in icon_paths:
+        try:
+            icon_path = resource_path("data/logo/icon.ico")
             if os.path.exists(icon_path):
-                try:
-                    self.root.iconbitmap(icon_path)
-                    print(f"Icono de aplicación cargado desde: {icon_path}")
-                    return
-                except Exception as e:
-                    print(f"Error al cargar el icono desde {icon_path}: {e}")
-        
-        print("No se encontró el archivo de icono. Agregue 'icon.ico' en 'data/logo/'")
+                self.root.iconbitmap(icon_path)
+                print(f"Icono de aplicación cargado desde: {icon_path}")
+            else:
+                print(f"No se encontró el icono en: {icon_path}")
+        except Exception as e:
+            print(f"Error al cargar el icono: {e}")
     
     def load_logo(self):
         """Cargar y colocar el logo en la esquina inferior izquierda"""
-        # Buscar el logo en múltiples ubicaciones posibles
-        logo_paths = [
-            "data/logo/cnta.jpg",  # Ruta relativa
-            os.path.join(os.path.dirname(os.path.abspath(__file__)), "cnta.jpg"),  # Ruta absoluta basada en la ubicación del script
-            os.path.join(os.getcwd(), "cnta.jpg")  # Ruta basada en el directorio de trabajo actual
-        ]
-        
-        for logo_path in logo_paths:
+        try:
+            logo_path = resource_path("data/logo/cnta.jpg")
             if os.path.exists(logo_path):
-                try:
-                    # Cargar la imagen
-                    img = Image.open(logo_path)
-                    
-                    # Redimensionar la imagen
-                    logo_width = 220  # Tamaño adecuado
-                    width_percent = (logo_width / float(img.size[0]))
-                    logo_height = int((float(img.size[1]) * float(width_percent)))
-                    img = img.resize((logo_width, logo_height), Image.LANCZOS)
-                    
-                    # Crear el PhotoImage y almacenarlo en el diccionario
-                    self.images['logo'] = ImageTk.PhotoImage(img)
-                    
-                    # Crear una etiqueta para mostrar la imagen
-                    logo_label = tk.Label(self.root, image=self.images['logo'])
-                    # Posicionar en la esquina inferior izquierda usando place
-                    logo_label.place(relx=0.035, rely=0.95, anchor="sw")
-                    
-                    print(f"Logo cargado y posicionado desde: {logo_path}")
-                    return
-                except Exception as e:
-                    print(f"Error al cargar el logo desde {logo_path}: {e}")
-        
-        print("No se encontró el archivo de logo. Puede añadir un archivo 'cnta.jpg' en el directorio del script.")    
+                # Cargar la imagen
+                img = Image.open(logo_path)
+                
+                # Redimensionar la imagen
+                logo_width = 220  # Tamaño adecuado
+                width_percent = (logo_width / float(img.size[0]))
+                logo_height = int((float(img.size[1]) * float(width_percent)))
+                img = img.resize((logo_width, logo_height), Image.LANCZOS)
+                
+                # Crear el PhotoImage y almacenarlo en el diccionario
+                self.images['logo'] = ImageTk.PhotoImage(img)
+                
+                # Crear una etiqueta para mostrar la imagen
+                logo_label = tk.Label(self.root, image=self.images['logo'])
+                # Posicionar en la esquina inferior izquierda usando place
+                logo_label.place(relx=0.035, rely=0.95, anchor="sw")
+                
+                print(f"Logo cargado y posicionado desde: {logo_path}")
+            else:
+                print(f"No se encontró el logo en: {logo_path}")
+        except Exception as e:
+            print(f"Error al cargar el logo: {e}")
     
     def setup_ui(self):
         notebook = ttk.Notebook(self.root)
@@ -395,27 +390,20 @@ class POLIP_Analyzer_GUI:
 def main():
     # Crear la ventana principal con ttkbootstrap
     root = ttk.Window(
-        title="Análisis de Inclusiones de Polifosfatos",
+        title="APIC: Análisis de Inclusiones de Polifosfatos",
         themename="cosmo",  # Temas: cosmo, flatly, journal, litera, lumen, etc.
         size=(1000, 700),
         minsize=(800, 600),
         resizable=(True, True),
     )
-    
-    # Intentar cargar el icono directamente en la ventana principal también
-    icon_paths = [
-        "data/logo/icon.ico",
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "logo", "icon.ico")
-    ]
-    
-    for icon_path in icon_paths:
+      # Intentar cargar el icono directamente en la ventana principal también
+    try:
+        icon_path = resource_path("data/logo/icon.ico")
         if os.path.exists(icon_path):
-            try:
-                root.iconbitmap(icon_path)
-                print(f"Icono de aplicación cargado en ventana principal desde: {icon_path}")
-                break
-            except Exception as e:
-                print(f"Error al cargar icono en ventana principal: {e}")
+            root.iconbitmap(icon_path)
+            print(f"Icono de aplicación cargado en ventana principal desde: {icon_path}")
+    except Exception as e:
+        print(f"Error al cargar icono en ventana principal: {e}")
     
     # Crear la aplicación
     app = POLIP_Analyzer_GUI(root)
