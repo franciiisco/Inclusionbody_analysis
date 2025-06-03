@@ -301,7 +301,7 @@ Para usos, distribución o modificaciones, contacta con el desarrollador.
 Si utilizas APIC en tu investigación, por favor cita:
 
 ```
-Márquez-Urbano, F. (2025). APIC: Advanced Polyphosphate Inclusion Cuantification (Versión 1.0) [Software]. CNTA. https://github.com/franciiisco/Inclusionbody_analysis.git
+Márquez-Urbano, F. (2025). APIC: Advanced Polyphosphate Inclusion Quantification (Versión 1.0) [Software]. CNTA. https://github.com/franciiisco/Inclusionbody_analysis.git
 ```
 
 ## Contacto
