@@ -148,6 +148,43 @@ def extract_metadata_from_filename(filename: str, flexible: bool = True) -> Dict
     # Dividir por guiones bajos
     parts = name_without_ext.split('_')
     
+    # Estrategia 0: Identificar componentes por marcadores específicos
+    found_patterns = 0
+    
+    # Inicializar con la primera parte como condición por convención
+    if parts:
+        metadata['condicion'] = parts[0]
+        found_patterns += 1
+    
+    # Buscar marcadores específicos en las partes (B, R, t)
+    for part in parts:
+        # Identificar bote (BX)
+        if re.match(r'^B\d+$', part, re.IGNORECASE):
+            metadata['bote'] = part.upper()
+            found_patterns += 1
+        
+        # Identificar réplica (RX)
+        elif re.match(r'^R\d+$', part, re.IGNORECASE):
+            metadata['replica'] = part.upper()
+            found_patterns += 1
+        
+        # Identificar tiempo (tX)
+        elif re.match(r'^t\d+$', part, re.IGNORECASE):
+            metadata['tiempo'] = part.lower()
+            found_patterns += 1
+        
+        # Identificar número de imagen (2-3 dígitos)
+        elif re.match(r'^\d{2,3}$', part):
+            metadata['numero_imagen'] = part
+            found_patterns += 1
+    
+    # Si encontramos al menos 3 componentes por marcadores, devolver los resultados
+    if found_patterns >= 3:
+        return metadata
+    
+    # Si la estrategia por marcadores no dio suficientes resultados, 
+    # seguimos con las estrategias por posición
+    
     # Estrategia 1: Patrón completo (5 partes)
     if len(parts) >= 5:
         pattern1 = r"^([^_]+)_([^_]+)_([^_]+)_([^_]+)_([^_]+)(?:_.*)?$"
@@ -159,6 +196,18 @@ def extract_metadata_from_filename(filename: str, flexible: bool = True) -> Dict
                 'replica': match1.group(3),
                 'tiempo': match1.group(4),
                 'numero_imagen': match1.group(5)
+            }
+    
+    # Estrategia 1.5: Patrón sin REPLICA (4 partes: CONDICION_BOTE_TIEMPO_NUMERO)
+    if len(parts) >= 4:
+        # Verificar si la tercera parte es tiempo (tX)
+        if parts[2].lower().startswith('t') and re.match(r't\d+', parts[2].lower()):
+            return {
+                'condicion': parts[0],
+                'bote': parts[1] if parts[1].upper().startswith('B') else 'B1',
+                'replica': 'R1',  # Valor por defecto ya que falta
+                'tiempo': parts[2],
+                'numero_imagen': parts[3]
             }
     
     # Estrategia 2: Sin BOTE (4 partes: CONDICION_REPLICA_TIEMPO_NUMERO)
