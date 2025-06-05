@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="data/logo/icon.ico" width="300" alt="APIC Icon" />
+</p>
+
 # APIC: Advanced Polyphosphate Inclusion Quantification
 
 ## Descripción del Proyecto
