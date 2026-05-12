@@ -2,14 +2,14 @@
 # filepath: c:\\Users\\fmarquez\\Desktop\\POLIP_Analizer\\config.py
 
 # --- Modos de Ejecución y Visualización ---
-DEVELOPMENT_MODE = False  # True para modo desarrollo (con visualizaciones), False para modo estándar
+DEVELOPMENT_MODE = True  # True para modo desarrollo (con visualizaciones), False para modo estándar
 
 # Opciones de visualización detallada (solo aplican si DEVELOPMENT_MODE es True)
 VISUALIZATION_SETTINGS = {
-    'show_preprocessing_steps': False,
-    'show_segmentation_results': False,
-    'show_inclusion_detection': False,
-    'show_summary_plots': False,
+    'show_preprocessing_steps': True,
+    'show_segmentation_results': True,
+    'show_inclusion_detection': True,
+    'show_summary_plots': True,
     'save_intermediate_images': False
 
 }
@@ -50,6 +50,7 @@ SEGMENT_CONFIG = {
         'max_aspect_ratio': 10.0
     }
 }
+
 
 # ------------------------------------------------------
 # |   Configuración de Detección de Inclusiones (v2)   |
@@ -93,3 +94,44 @@ DETECTION_V2_CONFIG = {
         'specific_cell_ids': []  # Para depuración de células específicas
     }
 }
+
+
+def deep_merge(base, overrides):
+    """Fusiona recursivamente dos diccionarios. overrides tiene precedencia."""
+    result = base.copy()
+    for key, value in overrides.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
+MORPH_CONFIGS = {
+    'bacilli': {},
+    'bifid': {
+        'segment': {
+            'min_distance': 35,
+            'gaussian_sigma': 1.0,
+            'filter': {
+                'max_area': 4000,
+                'min_circularity': 0.05,
+            },
+            'morphological': [
+                ('open', {'kernel_size': 3, 'iterations': 1}),
+                ('close', {'kernel_size': 3, 'iterations': 2}),
+            ],
+        },
+    },
+}
+
+
+def get_configs_for_morphology(morph):
+    if morph == 'bacilli':
+        return PREPROCESS_CONFIG, SEGMENT_CONFIG, DETECTION_V2_CONFIG
+
+    overrides = MORPH_CONFIGS.get(morph, {})
+    preprocess = deep_merge(PREPROCESS_CONFIG, overrides.get('preprocess', {}))
+    segment = deep_merge(SEGMENT_CONFIG, overrides.get('segment', {}))
+    detection = deep_merge(DETECTION_V2_CONFIG, overrides.get('detection', {}))
+    return preprocess, segment, detection

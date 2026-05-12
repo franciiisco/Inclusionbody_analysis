@@ -8,23 +8,27 @@ root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 sys.path.insert(0, root_dir)
 
 class AnalysisTab:
-    def __init__(self, parent, input_dir_var, output_dir_var, file_pattern_var, process_callback, results_callback):
+    def __init__(self, parent, input_dir_var, output_dir_var, file_pattern_var, process_callback, results_callback, scale=1.0):
         self.parent = parent
         self.input_dir = input_dir_var
         self.output_dir = output_dir_var
         self.file_pattern = file_pattern_var
         self.process_callback = process_callback
         self.results_callback = results_callback
+        self.scale = scale
         
         # Variable para controlar la generación de imágenes intermedias
         self.save_intermediate_images = ttk.BooleanVar(value=False)
+        
+        # Variable para la morfología bacteriana
+        self.morphology = ttk.StringVar(value="bacilli")
         
         # Create main layout with two columns - this will be the only container
         self.main_frame = ttk.Frame(self.parent)
         self.main_frame.pack(fill=ttk.BOTH, expand=True, padx=5, pady=5)
         
         # Left column for options
-        self.options_frame = ttk.Frame(self.main_frame, width=300)
+        self.options_frame = ttk.Frame(self.main_frame, width=max(300, int(300 * self.scale)))
         self.options_frame.pack(side=ttk.LEFT, fill=ttk.Y, padx=(0, 5))
         self.options_frame.pack_propagate(False)  # Maintain width
         
@@ -71,7 +75,7 @@ class AnalysisTab:
         ttk.Label(
             switch_frame, 
             text="Generar imágenes de\ncada paso del análisis:", 
-            wraplength=160
+            wraplength=max(160, int(160 * self.scale))
         ).pack(side=ttk.LEFT, padx=5)
         
         # Switch usando Checkbutton con estilo round-toggle
@@ -82,7 +86,19 @@ class AnalysisTab:
             command=self._on_images_toggle
         )
         self.images_switch.pack(side=ttk.RIGHT, padx=10)
-        
+
+        # Sección 1.6: Morfología bacteriana
+        morph_section = ttk.LabelFrame(self.options_frame, text="Morfología bacteriana")
+        morph_section.pack(fill=ttk.X, padx=5, pady=5)
+
+        morph_combo = ttk.Combobox(
+            morph_section,
+            textvariable=self.morphology,
+            values=["bacilli", "bifid"],
+            state="readonly"
+        )
+        morph_combo.pack(fill=ttk.X, padx=10, pady=5)
+
         # Sección 2: Formato de Archivo
         format_section = ttk.LabelFrame(self.options_frame, text="2. Formato de Archivo")
         format_section.pack(fill=ttk.X, padx=5, pady=5)

@@ -155,21 +155,19 @@ def process_image_v2(
     
     # Paso 2: Segmentación
     print("Segmentando células...")
-    
-    # Umbralización y operaciones morfológicas para visualización
+
     binary = threshold_image(
         preprocessed,
         method=segment_config['threshold']['method'],
         params=segment_config['threshold']['params']
     )
     binary = apply_morphological_operations(binary, segment_config['morphological'])
-    
-    # Segmentación completa
     segmented = segment_cells(preprocessed, segment_config)
-    
-    # Visualizar la segmentación si está habilitado
+    detection_source = cv2.bitwise_not(original_for_detection)
     if DEVELOPMENT_MODE and VISUALIZATION_SETTINGS.get('show_segmentation_results'):
-        visualize_segmentation(original_image, segmented, binary, draw_contours=False)      # Guardar imagen segmentada solo si está habilitado en la configuración
+        visualize_segmentation(original_image, segmented, binary, draw_contours=False)
+
+    # Guardar imagen segmentada solo si está habilitado en la configuración
     if VISUALIZATION_SETTINGS.get('save_intermediate_images'):
         segmented_path = os.path.join(images_dir, f"{base_filename}_segmented_v2.png")
         segmented_vis = (segmented * 50).astype(np.uint8)  # Escalar para visualización
@@ -177,12 +175,10 @@ def process_image_v2(
     
     # Paso 3: Detección de inclusiones con el método v2.0
     print("Detectando inclusiones de polifosfatos (método v2.0)...")
-    # Invertir la imagen original para la detección de inclusiones (brillantes sobre fondo oscuro)
-    inverted_for_detection = cv2.bitwise_not(original_for_detection)
 
     # Aplicar el nuevo método de detección v2.0
     all_inclusions = detect_all_inclusions_v2(
-        inverted_for_detection,  # Usar la imagen invertida
+        detection_source,  # Imagen con inclusiones brillantes sobre fondo oscuro
         segmented,
         detection_config
     )
@@ -236,9 +232,9 @@ def batch_process_v2(
     input_dir: str,
     output_dir: str = None,
     file_pattern: str = "*.jpg",
-    enforce_naming_convention: bool = True,  # Nuevo parámetro para controlar la validación
-    save_intermediate_images: bool = None,   # Nuevo parámetro para imágenes intermedias
-    progress_callback=None,  # New parameter for progress tracking
+    enforce_naming_convention: bool = True,  # Validación de nomenclatura
+    save_intermediate_images: bool = None,   # Imágenes intermedias
+    progress_callback=None,                   # Callback de progreso para GUI
     **configs
 ):
     """
@@ -249,7 +245,7 @@ def batch_process_v2(
         output_dir: Directorio para guardar resultados
         file_pattern: Patrón para seleccionar archivos
         enforce_naming_convention: Si es True, valida que los nombres de archivo cumplan con el formato
-                                 CONDICION_BOTE_REPLICA_TIEMPO_NºIMAGEN
+                                   CONDICION_BOTE_REPLICA_TIEMPO_NºIMAGEN
         save_intermediate_images: Si True, guarda las imágenes intermedias (sobreescribe configuración)
         progress_callback: Función callback para reportar progreso (file_index, filename)
         **configs: Configuraciones para procesamiento
@@ -370,9 +366,9 @@ def batch_process(
     input_dir: str,
     output_dir: str = None,
     file_pattern: str = "*.jpg",
-    enforce_naming_convention: bool = True,  # Nuevo parámetro para controlar la validación
-    save_intermediate_images: bool = None,    # Nuevo parámetro para controlar imágenes intermedias
-    progress_callback=None,  # New parameter for progress tracking
+    enforce_naming_convention: bool = True,
+    save_intermediate_images: bool = None,
+    progress_callback=None,
     **configs
 ):
     """
@@ -383,19 +379,18 @@ def batch_process(
         output_dir: Directorio para guardar resultados
         file_pattern: Patrón para seleccionar archivos
         enforce_naming_convention: Si es True, valida que los nombres de archivo cumplan con el formato
-                                 CONDICION_BOTE_REPLICA_TIEMPO_NºIMAGEN
+                                   CONDICION_BOTE_REPLICA_TIEMPO_NºIMAGEN
         save_intermediate_images: Si True, guarda las imágenes intermedias (sobreescribe configuración)
         progress_callback: Función callback para reportar progreso (file_index, filename)
         **configs: Configuraciones para procesamiento
     """
-    # Utilizamos directamente la versión 2 de batch_process
     return batch_process_v2(
         input_dir=input_dir,
         output_dir=output_dir,
         file_pattern=file_pattern,
         enforce_naming_convention=enforce_naming_convention,
         save_intermediate_images=save_intermediate_images,
-        progress_callback=progress_callback,  # Pass through the progress callback
+        progress_callback=progress_callback,
         **configs
     )
 

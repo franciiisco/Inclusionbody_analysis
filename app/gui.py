@@ -14,6 +14,23 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from PIL import Image, ImageTk
 import traceback
+import ctypes
+
+def enable_dpi_awareness():
+    """Habilita DPI awareness en Windows para que tkinter obtenga el DPI real."""
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    except:
+        pass
+
+def get_dpi_scale():
+    """Devuelve el factor de escala DPI (1.0 = 96 DPI = 100%% zoom)."""
+    try:
+        hwnd = ctypes.windll.user32.GetDesktopWindow()
+        dpi = ctypes.windll.user32.GetDpiForWindow(hwnd)
+        return dpi / 96.0
+    except:
+        return 1.0
 
 def resource_path(relative_path):
     """Obtener la ruta absoluta al recurso, funciona tanto en desarrollo como en el ejecutable."""
@@ -32,7 +49,7 @@ sys.path.insert(0, root_dir)
 
 # Importar funciones de procesamiento
 from src.core import batch_process, process_image_v2 as process_image
-from config import PREPROCESS_CONFIG, SEGMENT_CONFIG, DETECTION_V2_CONFIG
+from config import PREPROCESS_CONFIG, SEGMENT_CONFIG, DETECTION_V2_CONFIG, get_configs_for_morphology
 from src.analysis import export_results_to_excel
 from utils.file_operations import select_input_directory, select_output_directory, ensure_output_directory, detect_image_file_pattern
 from utils.visualization import create_results_table, create_plots
@@ -45,11 +62,13 @@ from app.tabs.methodology_tab import MethodologyTab
 from app.tabs.info_tab import InfoTab
 
 class POLIP_Analyzer_GUI:    
-    def __init__(self, root):
+    def __init__(self, root, scale=1.0):
         self.root = root
-        self.root.title("APIC: Análisis de Inclusiones de Polifosfatos")        
-        self.root.geometry("1000x700")
-        self.root.minsize(800, 600)
+        self.root.title("APIC: Análisis de Inclusiones de Polifosfatos")
+        s = scale
+        self.scale = s
+        self.root.geometry(f"{int(1000 * s)}x{int(700 * s)}")
+        self.root.minsize(int(800 * s), int(600 * s))
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         
         # Cargar el icono de la aplicación
@@ -94,7 +113,7 @@ class POLIP_Analyzer_GUI:
                 img = Image.open(logo_path)
                 
                 # Redimensionar la imagen
-                logo_width = 220  # Tamaño adecuado
+                logo_width = int(220 * self.scale)  # Escalado por DPI
                 width_percent = (logo_width / float(img.size[0]))
                 logo_height = int((float(img.size[1]) * float(width_percent)))
                 img = img.resize((logo_width, logo_height), Image.LANCZOS)
@@ -122,7 +141,7 @@ class POLIP_Analyzer_GUI:
         notebook.add(main_tab, text="Análisis")
         notebook.add(methodology_tab, text="Metodología")
         notebook.add(info_tab, text="Información")        # Integrar pestañas refactorizadas
-        self.analysis_tab = AnalysisTab(main_tab, self.input_dir, self.output_dir, self.file_pattern, self._process_batch, self._view_aggregated_results)
+        self.analysis_tab = AnalysisTab(main_tab, self.input_dir, self.output_dir, self.file_pattern, self._process_batch, self._view_aggregated_results, scale=self.scale)
         # Usar los widgets existentes en analysis_tab para crear el progress_tracker
         self.progress_tracker = ProgressTracker(
             self.analysis_tab.status_text, 
@@ -203,6 +222,7 @@ class POLIP_Analyzer_GUI:
             f"Directorio de entrada: {self.input_dir.get()}\n"
             f"Patrón de archivos: {self.file_pattern.get()}\n"
             f"Directorio de salida: {self.output_dir.get()}\n"
+            f"Morfología: {self.analysis_tab.morphology.get()}\n"
             f"Generación de imágenes intermedias: {images_status}",
             append=False
         )
@@ -241,6 +261,10 @@ class POLIP_Analyzer_GUI:
                     self.root
                 ))
             
+            # Obtener configuración según la morfología seleccionada
+            morph = self.analysis_tab.morphology.get()
+            preprocess_config, segment_config, detection_config = get_configs_for_morphology(morph)
+
             # Capturar la salida estándar
             output_buffer = io.StringIO()
             with redirect_stdout(output_buffer):
@@ -251,7 +275,10 @@ class POLIP_Analyzer_GUI:
                     file_pattern=self.file_pattern.get(),
                     enforce_naming_convention=True,  # Siempre validar formato
                     save_intermediate_images=self.analysis_tab.save_intermediate_images.get(),  # Pasar el estado del switch
-                    progress_callback=progress_callback  # Pass the progress callback
+                    progress_callback=progress_callback,  # Pass the progress callback
+                    preprocess_config=preprocess_config,
+                    segment_config=segment_config,
+                    detection_config=detection_config
                 )
             
             # Mostrar la salida capturada en el área de resultados
@@ -330,7 +357,7 @@ class POLIP_Analyzer_GUI:
             # Mostrar una ventana con los resultados
             results_window = ttk.Toplevel(self.root)
             results_window.title("Resultados Agregados")
-            results_window.geometry("900x600")
+            results_window.geometry(f"{int(900 * self.scale)}x{int(600 * self.scale)}")
             
             # Crear notebook para las distintas vistas
             notebook = ttk.Notebook(results_window)
@@ -388,12 +415,14 @@ class POLIP_Analyzer_GUI:
     def _get_step_descriptions(self):
         pass
 def main():
-    # Crear la ventana principal con ttkbootstrap
+    enable_dpi_awareness()
+    scale = get_dpi_scale()
+
     root = ttk.Window(
         title="APIC: Análisis de Inclusiones de Polifosfatos",
-        themename="cosmo",  # Temas: cosmo, flatly, journal, litera, lumen, etc.
-        size=(1000, 700),
-        minsize=(800, 600),
+        themename="cosmo",
+        size=(int(1000 * scale), int(700 * scale)),
+        minsize=(int(800 * scale), int(600 * scale)),
         resizable=(True, True),
     )
       # Intentar cargar el icono directamente en la ventana principal también
@@ -406,7 +435,7 @@ def main():
         print(f"Error al cargar icono en ventana principal: {e}")
     
     # Crear la aplicación
-    app = POLIP_Analyzer_GUI(root)
+    app = POLIP_Analyzer_GUI(root, scale)
     
     # Iniciar bucle principal
     root.mainloop()
