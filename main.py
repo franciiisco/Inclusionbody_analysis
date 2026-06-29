@@ -21,6 +21,8 @@ if __name__ == "__main__":
                         help='No validar formato de nombres de archivo (formato: CONDICION_BOTE_REPLICA_TIEMPO_NºIMAGEN)')
     parser.add_argument('--morph', type=str, default='bacilli', choices=['bacilli', 'bifid'],
                         help='Morfología bacteriana: bacilli (bacilos) o bifid (bifidobacterias)')
+    parser.add_argument('--image', type=str, default='data/raw/Bifid.tif',
+                        help='Ruta a la imagen a analizar (solo en modo individual, sin --batch)')
     args = parser.parse_args()
 
     enforce_naming = not args.no_enforce_naming
@@ -41,7 +43,8 @@ if __name__ == "__main__":
                 detection_config=detection_config
             )
         else:
-            image_path = "data/raw/Bifid.tif"
+            image_path = args.image
+            print(f"Imagen a analizar: {image_path}")
             if DEVELOPMENT_MODE:
                 print("Modo de desarrollo activado. Se mostrarán visualizaciones interactivas.")
                 process_image_v2(image_path,

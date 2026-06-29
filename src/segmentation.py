@@ -12,6 +12,7 @@ from typing import Dict, Any, Optional, Tuple, List
 from skimage import measure, filters, segmentation, morphology
 from scipy import ndimage as ndi
 from skimage.feature import peak_local_max
+from src.merge import hierarchical_merge
 
 
 def threshold_image(
@@ -132,11 +133,12 @@ def segment_cells_enhanced(
     min_cell_size: int = 60,
     min_distance: int = 20,
     gaussian_sigma: float = 1.0,
-    find_markers_method: str = 'distance'
+    find_markers_method: str = 'distance',
+    merge_config: Optional[Dict[str, Any]] = None
 ) -> np.ndarray:
     """
     Segmenta células utilizando transformada de distancia y watershed, 
-    inspirado en la función count_bacteria.
+    con post-merge jerárquico opcional para corregir sobre-segmentación en bífidas.
     
     Args:
         image: Imagen preprocesada
@@ -144,6 +146,7 @@ def segment_cells_enhanced(
         min_distance: Distancia mínima entre máximos locales
         gaussian_sigma: Sigma para el suavizado gaussiano
         find_markers_method: Método para encontrar marcadores ('distance' o 'threshold')
+        merge_config: Configuración para post-merge. Si None o enabled=False, se omite.
     
     Returns:
         Imagen etiquetada donde cada célula tiene etiqueta única
@@ -161,7 +164,6 @@ def segment_cells_enhanced(
     
     # 4. Encontrar marcadores para watershed
     if find_markers_method == 'distance':
-        # Método 1: Usando detección de máximos locales (como en count_bacteria)
         local_maxi_coords = peak_local_max(
             distance, 
             min_distance=min_distance,
@@ -169,14 +171,11 @@ def segment_cells_enhanced(
             labels=img_thresh
         )
         
-        # Crear array de marcadores
         markers = np.zeros_like(img_thresh, dtype=np.int32)
         for i, coord in enumerate(local_maxi_coords, start=1):
             markers[tuple(coord)] = i
     
-    else:  # find_markers_method == 'threshold'
-        # Método 2: Usando umbralización de la transformada de distancia
-        # (Similar a nuestro enfoque original)
+    else:
         distance_normalized = cv2.normalize(distance, None, 0, 1.0, cv2.NORM_MINMAX)
         _, markers = cv2.threshold(distance_normalized, 0.3, 1, cv2.THRESH_BINARY)
         markers = np.uint8(markers)
@@ -185,7 +184,17 @@ def segment_cells_enhanced(
     # 5. Aplicar watershed
     labels_ws = segmentation.watershed(-distance, markers, mask=img_thresh)
     
-    # 6. Eliminar objetos pequeños
+    # 6. Post-merge jerárquico (solo si está habilitado)
+    if merge_config and merge_config.get('enabled', False):
+        labels_ws = hierarchical_merge(
+            labels=labels_ws,
+            distance_map=distance,
+            original_image=image,
+            binary_mask=img_thresh,
+            merge_config=merge_config
+        )
+    
+    # 7. Eliminar objetos pequeños
     labels_ws = morphology.remove_small_objects(labels_ws, min_size=min_cell_size)
     
     return labels_ws
@@ -294,13 +303,13 @@ def segment_cells(
     
     # Usar el método mejorado inspirado en count_bacteria o el método original
     if config.get('use_enhanced', True):
-        # Método mejorado
         segmented = segment_cells_enhanced(
             image,
             min_cell_size=config.get('min_cell_size', 60),
             min_distance=config.get('min_distance', 20),
             gaussian_sigma=config.get('gaussian_sigma', 1.0),
-            find_markers_method=config.get('find_markers_method', 'distance')
+            find_markers_method=config.get('find_markers_method', 'distance'),
+            merge_config=config.get('merge', None)
         )
     else:
         # Método original

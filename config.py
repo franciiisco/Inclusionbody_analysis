@@ -32,7 +32,7 @@ PREPROCESS_CONFIG = {
 SEGMENT_CONFIG = {
     'use_enhanced': True,
     'min_cell_size': 200,
-    'min_distance': 25,  # Reducido de 25 para mayor sensibilidad a objetos cercanos
+    'min_distance': 25,
     'gaussian_sigma': 1.5,
     'find_markers_method': 'distance',
     'threshold': {
@@ -48,6 +48,18 @@ SEGMENT_CONFIG = {
         'max_area': 2000,
         'min_circularity': 0.1,
         'max_aspect_ratio': 10.0
+    },
+    'merge': {
+        'enabled': False,
+        'merge_threshold': 0.55,
+        'max_merged_area': 5000,
+        'weights': {
+            'valley': 0.30,
+            'skeleton': 0.30,
+            'intensity': 0.15,
+            'boundary': 0.10,
+            'solidity': 0.15,
+        },
     }
 }
 
@@ -111,16 +123,28 @@ MORPH_CONFIGS = {
     'bacilli': {},
     'bifid': {
         'segment': {
-            'min_distance': 35,
+            'min_distance': 15,
             'gaussian_sigma': 1.0,
             'filter': {
-                'max_area': 4000,
+                'max_area': 5000,
                 'min_circularity': 0.05,
             },
             'morphological': [
                 ('open', {'kernel_size': 3, 'iterations': 1}),
                 ('close', {'kernel_size': 3, 'iterations': 2}),
             ],
+            'merge': {
+                'enabled': True,
+                'merge_threshold': 0.55,
+                'max_merged_area': 5000,
+                'weights': {
+                    'valley': 0.30,
+                    'skeleton': 0.30,
+                    'intensity': 0.15,
+                    'boundary': 0.10,
+                    'solidity': 0.15,
+                },
+            },
         },
     },
 }
